@@ -48,7 +48,7 @@ button {
 }
 
 .sidepanel-app .app-shell {
-  min-width: 320px;
+  min-width: 0;
 }
 
 /* Brand */
@@ -301,6 +301,7 @@ button {
 
 .breakdown-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -319,26 +320,38 @@ button {
   padding: 10px 8px 10px 0;
   border-bottom: 1px solid var(--border);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .breakdown-table tr:last-child td {
   border-bottom: 0;
 }
 
+/* Proportional columns so the 4-column table always fits the panel width
+   (Chrome controls the side-panel width; it cannot be set from the extension). */
+.breakdown-table col.col-word {
+  width: 22%;
+}
+
+.breakdown-table col.col-pinyin {
+  width: 26%;
+}
+
+.breakdown-table col.col-pos {
+  width: 16%;
+}
+
 .breakdown-hanzi {
   font-size: 15px;
   font-weight: 640;
-  white-space: nowrap;
 }
 
 .breakdown-pinyin {
   color: var(--accent-strong);
-  white-space: nowrap;
 }
 
 .breakdown-pos {
   color: var(--muted);
-  white-space: nowrap;
 }
 
 .breakdown-note {

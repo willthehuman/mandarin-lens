@@ -281,6 +281,12 @@ function renderBreakdown(items: AnalysisResult["wordBreakdown"]): HTMLElement {
   return h("section", { className: "panel-section" }, [
     h("div", { className: "section-label-row" }, [h("span", { className: "section-label", text: "Word breakdown" })]),
     h("table", { className: "breakdown-table" }, [
+      h("colgroup", {}, [
+        h("col", { className: "col-word" }),
+        h("col", { className: "col-pinyin" }),
+        h("col", { className: "col-meaning" }),
+        h("col", { className: "col-pos" })
+      ]),
       h("thead", {}, [headerRow]),
       h("tbody", {}, rows)
     ])
