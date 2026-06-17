@@ -1,4 +1,5 @@
-const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g;
+const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const CJK_GLOBAL_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g;
 const LATIN_RE = /[A-Za-z]/g;
 
 export function containsCjk(text: string): boolean {
@@ -6,7 +7,7 @@ export function containsCjk(text: string): boolean {
 }
 
 export function isLikelyMandarin(text: string): boolean {
-  const cjkCount = text.match(CJK_RE)?.length ?? 0;
+  const cjkCount = text.match(CJK_GLOBAL_RE)?.length ?? 0;
   const latinCount = text.match(LATIN_RE)?.length ?? 0;
 
   if (cjkCount === 0) {

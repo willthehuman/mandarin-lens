@@ -1,3 +1,6 @@
+import { pinyin as convertToPinyin } from "pinyin-pro";
+
+import { containsCjk, isLikelyMandarin } from "./language";
 import type { AnalysisRequest, AnalysisResult, ProviderName, WordBreakdownItem } from "./types";
 
 interface ResultMetadata {
@@ -43,22 +46,31 @@ export function normalizeAnalysisResult(
     throw new Error("The model returned JSON, but it was not an object.");
   }
 
+  const sourceIsMandarin = request.kind === "text" && isLikelyMandarin(request.text);
+  const rawMandarin = toString(raw.mandarin);
+  const mandarin = sourceIsMandarin ? request.text : rawMandarin;
+  const warnings = toStringArray(raw.warnings);
+
+  if (sourceIsMandarin && rawMandarin && rawMandarin !== request.text) {
+    warnings.push("The model rewrote the selected Mandarin text; Mandarin Lens preserved the original selection instead.");
+  }
+
   const wordBreakdown = toArray(raw.wordBreakdown)
     .map((item) => normalizeWordBreakdownItem(item))
     .filter((item): item is WordBreakdownItem => Boolean(item));
 
   return {
-    inputLanguage: toString(raw.inputLanguage) || "Unknown",
-    sourceText: toString(raw.sourceText) || fallbackSourceText(request),
-    mandarin: toString(raw.mandarin),
-    pinyin: toString(raw.pinyin),
+    inputLanguage: sourceIsMandarin ? "Mandarin" : toString(raw.inputLanguage) || "Unknown",
+    sourceText: sourceIsMandarin ? request.text : toString(raw.sourceText) || fallbackSourceText(request),
+    mandarin,
+    pinyin: normalizePinyin(mandarin, toString(raw.pinyin)),
     literalMeaning: toString(raw.literalMeaning),
     naturalEnglish: toString(raw.naturalEnglish),
     wordBreakdown,
     grammarNotes: toStringArray(raw.grammarNotes),
     usageNotes: toStringArray(raw.usageNotes),
     imageDescription: request.kind === "image" ? toString(raw.imageDescription) : undefined,
-    warnings: toStringArray(raw.warnings),
+    warnings,
     provider: metadata.provider,
     model: metadata.model,
     createdAt: new Date().toISOString()
@@ -80,10 +92,22 @@ function normalizeWordBreakdownItem(raw: unknown): WordBreakdownItem | undefined
 
   return {
     hanzi,
-    pinyin,
+    pinyin: normalizePinyin(hanzi, pinyin),
     english,
     notes: toString(raw.notes) || undefined
   };
+}
+
+function normalizePinyin(hanzi: string, modelPinyin: string): string {
+  if (!containsCjk(hanzi)) {
+    return modelPinyin;
+  }
+
+  try {
+    return convertToPinyin(hanzi);
+  } catch {
+    return modelPinyin;
+  }
 }
 
 function extractFirstJsonObject(value: string): string | undefined {

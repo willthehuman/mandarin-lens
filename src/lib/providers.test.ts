@@ -53,7 +53,7 @@ describe("provider request builders", () => {
       settings
     ) as { messages: Array<{ content: string }> };
 
-    expect(body.messages[1]?.content).toContain("already contain Mandarin");
+    expect(body.messages[1]?.content).toContain("Copy it exactly into sourceText and mandarin");
   });
 });
 

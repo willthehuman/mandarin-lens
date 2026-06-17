@@ -391,6 +391,10 @@ button {
   line-height: 1.45;
 }
 
+.error-actions {
+  margin-top: 12px;
+}
+
 .options-app {
   min-height: 100vh;
 }

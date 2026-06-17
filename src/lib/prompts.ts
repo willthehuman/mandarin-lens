@@ -3,9 +3,9 @@ import type { AnalysisRequest } from "./types";
 
 export const RESULT_SCHEMA_DESCRIPTION = `{
   "inputLanguage": "English | Mandarin | Mixed | Unknown",
-  "sourceText": "original text or concise image-derived source phrase",
-  "mandarin": "Simplified Chinese text. If source text is already Mandarin, copy the Mandarin source here.",
-  "pinyin": "Mandarin pinyin with tone marks",
+  "sourceText": "original text or concise image-derived source phrase. If the selected text is Mandarin, copy it exactly.",
+  "mandarin": "Simplified Chinese text. If source text is already Mandarin, copy the Mandarin source exactly without changing, paraphrasing, transliterating, or replacing characters.",
+  "pinyin": "Mandarin pinyin with tone marks. Do not mix hanzi into this field.",
   "literalMeaning": "literal word-by-word English meaning",
   "naturalEnglish": "natural English meaning",
   "wordBreakdown": [
@@ -24,6 +24,8 @@ export function buildSystemPrompt(): string {
     "Use Simplified Chinese for Mandarin output and pinyin with tone marks.",
     "Explain in concise English for adult learners.",
     "If the selected text is already Mandarin, skip translation and analyze the source text as Mandarin.",
+    "For Mandarin source text, sourceText and mandarin must be an exact character-for-character copy of the selected text.",
+    "Never rewrite, paraphrase, romanize, transliterate, or substitute characters in existing Mandarin source text.",
     "If translating from English or another language, provide natural Mandarin first, then learning details.",
     "Prefer useful vocabulary segmentation over character-by-character breakdown unless a single character is meaningful.",
     "The response must match this schema exactly enough for a parser to consume it:",
@@ -48,7 +50,7 @@ export function buildUserPrompt(request: AnalysisRequest): string {
   const sourceIsMandarin = isLikelyMandarin(request.text);
   return [
     sourceIsMandarin
-      ? "The selected text appears to already contain Mandarin. Do not translate it; analyze it directly."
+      ? "The selected text is Mandarin. Do not translate it. Copy it exactly into sourceText and mandarin, then analyze it directly."
       : "Translate the selected text into natural Simplified Chinese, then analyze the Mandarin.",
     "Include pinyin, literal meaning, natural English meaning, word breakdown, grammar notes, and usage notes.",
     `Selected text:\n${request.text}`,

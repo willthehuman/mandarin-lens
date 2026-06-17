@@ -1,7 +1,7 @@
 import "../styles.css";
 
 import { h, replaceChildren } from "../lib/dom";
-import { analyzeRequest } from "../lib/providers";
+import { activeModel, analyzeRequest } from "../lib/providers";
 import { getAnalysisStatus, getSettings, saveAnalysisStatus } from "../lib/settings";
 import type { AnalysisRequest, AnalysisResult, AnalysisStatus, ExtensionMessage } from "../lib/types";
 
@@ -104,11 +104,31 @@ function renderContent(status: AnalysisStatus): HTMLElement {
   }
 
   if (status.status === "error") {
+    const retryRequest = status.request;
+
     return h("div", { className: "stack" }, [
-      status.request ? renderSourceSection(status.request) : undefined,
+      retryRequest ? renderSourceSection(retryRequest) : undefined,
       h("section", { className: "error-panel" }, [
         h("h2", { text: status.error.message }),
-        status.error.details ? h("p", { text: status.error.details }) : undefined
+        status.error.details ? h("p", { text: status.error.details }) : undefined,
+        h("div", { className: "error-actions actions" }, [
+          retryRequest
+            ? h("button", {
+                className: "primary-button",
+                text: "Retry",
+                onClick: () => {
+                  void retryAnalysis(retryRequest);
+                }
+              })
+            : undefined,
+          h("button", {
+            className: "secondary-button",
+            text: "Settings",
+            onClick: () => {
+              void chrome.runtime.openOptionsPage();
+            }
+          })
+        ])
       ])
     ]);
   }
@@ -128,6 +148,21 @@ function maybeRunAnalysis(status: AnalysisStatus): void {
 
   activeAnalysisKey = analysisKey;
   void runAnalysisInPanel(status, analysisKey);
+}
+
+async function retryAnalysis(request: AnalysisRequest): Promise<void> {
+  const settings = await getSettings();
+  const loadingStatus: AnalysisStatus = {
+    status: "loading",
+    request,
+    provider: settings.provider,
+    model: activeModel(settings),
+    startedAt: new Date().toISOString()
+  };
+
+  await saveAnalysisStatus(loadingStatus);
+  render(loadingStatus);
+  maybeRunAnalysis(loadingStatus);
 }
 
 async function runAnalysisInPanel(
