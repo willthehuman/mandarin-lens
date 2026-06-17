@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Mandarin Lens",
+  "description": "Analyze selected English or Mandarin text, plus right-clicked images, with Mandarin, pinyin, and learning notes.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["contextMenus", "sidePanel", "storage"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://openrouter.ai/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Mandarin Lens"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_page": "options.html"
+}
