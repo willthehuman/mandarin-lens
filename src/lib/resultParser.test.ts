@@ -52,6 +52,22 @@ describe("result parser", () => {
     expect(result.provider).toBe("ollama");
   });
 
+  it("coerces the part-of-speech field on word breakdown items", () => {
+    const result = parseAnalysisResult(
+      JSON.stringify({
+        mandarin: "你好",
+        wordBreakdown: [{ hanzi: "你", pinyin: "ni", english: "you", pos: "pron." }]
+      }),
+      textRequest,
+      {
+        provider: "ollama",
+        model: "qwen2.5vl:7b"
+      }
+    );
+
+    expect(result.wordBreakdown[0]?.pos).toBe("pron.");
+  });
+
   it("preserves Mandarin input exactly when the model rewrites it", () => {
     const request: AnalysisRequest = {
       kind: "text",

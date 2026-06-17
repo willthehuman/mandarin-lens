@@ -9,7 +9,7 @@ export const RESULT_SCHEMA_DESCRIPTION = `{
   "literalMeaning": "literal word-by-word English meaning",
   "naturalEnglish": "natural English meaning",
   "wordBreakdown": [
-    { "hanzi": "词", "pinyin": "ci2 with tone marks preferred", "english": "meaning", "notes": "brief learner note" }
+    { "hanzi": "词", "pinyin": "ci2 with tone marks preferred", "english": "meaning", "pos": "part of speech abbreviation, e.g. n., v., adj., adv., conj., part.", "notes": "brief learner note" }
   ],
   "grammarNotes": ["short grammar note"],
   "usageNotes": ["short usage, tone, cultural, or register note"],

@@ -8,6 +8,7 @@ interface ElementOptions {
   value?: string;
   name?: string;
   id?: string;
+  href?: string;
   htmlFor?: string;
   checked?: boolean;
   placeholder?: string;
@@ -29,6 +30,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   if (options.text !== undefined) element.textContent = options.text;
   if (options.title) element.title = options.title;
   if (options.id) element.id = options.id;
+  if (options.href && element instanceof HTMLAnchorElement) {
+    element.href = options.href;
+    element.target = "_blank";
+    element.rel = "noreferrer";
+  }
   if (options.ariaLabel) element.setAttribute("aria-label", options.ariaLabel);
   if (options.htmlFor && element instanceof HTMLLabelElement) element.htmlFor = options.htmlFor;
   if (options.type && element instanceof HTMLInputElement) element.type = options.type;

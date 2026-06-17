@@ -94,6 +94,7 @@ function normalizeWordBreakdownItem(raw: unknown): WordBreakdownItem | undefined
     hanzi,
     pinyin: normalizePinyin(hanzi, pinyin),
     english,
+    pos: toString(raw.pos) || undefined,
     notes: toString(raw.notes) || undefined
   };
 }

@@ -25,6 +25,7 @@ export interface WordBreakdownItem {
   hanzi: string;
   pinyin: string;
   english: string;
+  pos?: string;
   notes?: string;
 }
 
