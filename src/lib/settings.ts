@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaBaseUrl: "http://localhost:11434",
   ollamaModel: "gemma4:e4b-it-qat",
   openRouterApiKey: "",
-  openRouterModel: "google/gemini-2.5-flash",
+  openRouterModel: "qwen/qwen3.6-flash",
   preferSameModelForVision: true
 };
 

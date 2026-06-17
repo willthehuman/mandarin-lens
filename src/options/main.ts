@@ -66,7 +66,7 @@ function render(settings: Settings, feedback: { type: "success" | "error" | "neu
       id: openRouterModelId,
       type: "text",
       value: settings.openRouterModel,
-      placeholder: "google/gemini-2.5-flash"
+      placeholder: "qwen/qwen3.6-flash"
     }),
     preferSameModelForVision: h("input", {
       id: preferSameModelForVisionId,
