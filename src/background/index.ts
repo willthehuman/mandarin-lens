@@ -10,13 +10,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   chrome.contextMenus.create({
     id: MENU_SELECTION,
-    title: "Analyze Mandarin with pinyin",
+    title: "Analyze with Mandarin Lens",
     contexts: ["selection"]
   });
 
   chrome.contextMenus.create({
     id: MENU_IMAGE,
-    title: "Describe and analyze in Mandarin",
+    title: "Describe and analyze with Mandarin Lens",
     contexts: ["image"]
   });
 

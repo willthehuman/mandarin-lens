@@ -3,8 +3,8 @@ import ollamaSvg from "../icons/ollama.svg?raw";
 import openRouterSvg from "../icons/openrouter.svg?raw";
 
 import { h, replaceChildren } from "../lib/dom";
-import { getSettings, saveSettings } from "../lib/settings";
-import type { ExtensionMessage, ProviderName, Settings, TestProviderResponse } from "../lib/types";
+import { getAnalysisStatus, getSettings, saveSettings } from "../lib/settings";
+import type { AnalysisDebugInfo, AnalysisStatus, ExtensionMessage, ProviderName, Settings, TestProviderResponse } from "../lib/types";
 
 const appRoot = document.querySelector<HTMLElement>("#app");
 
@@ -13,14 +13,21 @@ if (!appRoot) {
 }
 
 const app = appRoot;
+type Feedback = { type: "success" | "error" | "neutral"; text: string };
+
+let debugVisible = false;
+let latestAnalysisStatus: AnalysisStatus | undefined;
+let latestFeedback: Feedback | undefined;
 
 void initialize();
 
 async function initialize(): Promise<void> {
+  latestAnalysisStatus = await getAnalysisStatus();
   render(await getSettings(), undefined);
 }
 
-function render(settings: Settings, feedback: { type: "success" | "error" | "neutral"; text: string } | undefined): void {
+function render(settings: Settings, feedback: Feedback | undefined): void {
+  latestFeedback = feedback;
   const providerName = "provider";
   const ollamaBaseUrlId = "ollamaBaseUrl";
   const ollamaModelId = "ollamaModel";
@@ -117,11 +124,23 @@ function render(settings: Settings, feedback: { type: "success" | "error" | "neu
     });
   });
 
+  const debugButton = h("button", {
+    className: "secondary-button",
+    text: debugVisible ? "Hide debug info" : "Show debug info",
+    onClick: async () => {
+      debugVisible = !debugVisible;
+      if (debugVisible) {
+        latestAnalysisStatus = await getAnalysisStatus();
+      }
+      render(readSettingsFromForm(), latestFeedback);
+    }
+  });
+
   replaceChildren(app, [
     h("div", { className: "app-shell options-shell" }, [
       h("header", { className: "options-header" }, [
         h("div", { className: "brand" }, [
-          h("div", { className: "brand-mark", text: "文" }),
+          brandLogo(),
           h("h1", { className: "brand-title", text: "Mandarin Lens Options" })
         ])
       ]),
@@ -169,10 +188,11 @@ function render(settings: Settings, feedback: { type: "success" | "error" | "neu
             switchControl(fields.preferSameModelForVision)
           ]),
           feedbackElement
-        ])
+        ]),
+        debugVisible ? renderDebugPanel(latestAnalysisStatus) : undefined
       ]),
       h("footer", { className: "action-bar" }, [
-        testButton,
+        h("div", { className: "action-bar-start" }, [testButton, debugButton]),
         h("div", { className: "action-bar-end" }, [cancelButton, saveButton])
       ])
     ])
@@ -198,6 +218,74 @@ function passwordField(input: HTMLInputElement): HTMLElement {
 function switchControl(input: HTMLInputElement): HTMLElement {
   const track = h("span", { className: "switch-track" }, [h("span", { className: "switch-thumb" })]);
   return h("label", { className: "switch" }, [input, track]);
+}
+
+function renderDebugPanel(status: AnalysisStatus | undefined): HTMLElement {
+  const debug = getStatusDebug(status);
+
+  if (!debug) {
+    return h("section", { className: "debug-panel" }, [
+      h("div", { className: "debug-header" }, [h("h2", { text: "Debug info" })]),
+      h("p", {
+        className: "field-hint",
+        text: "No analysis debug info is available yet. Run an analysis from the context menu, then return here."
+      })
+    ]);
+  }
+
+  const metadata = {
+    provider: debug.provider,
+    model: debug.model,
+    createdAt: debug.createdAt,
+    request: debug.request,
+    error: debug.error
+  };
+
+  return h("section", { className: "debug-panel" }, [
+    h("div", { className: "debug-header" }, [
+      h("h2", { text: "Debug info" }),
+      h("span", { className: "debug-meta", text: `${debug.provider} - ${compactDebugModel(debug.model)}` })
+    ]),
+    renderDebugBlock("Metadata", formatDebugValue(metadata)),
+    renderDebugBlock("System prompt", debug.systemPrompt),
+    renderDebugBlock("User prompt", debug.userPrompt),
+    renderDebugBlock("Provider request", formatDebugValue(debug.providerRequest)),
+    renderDebugBlock("Raw response", debug.rawResponse || "No raw response was captured."),
+    renderDebugBlock("Normalized result", debug.normalizedResult ? formatDebugValue(debug.normalizedResult) : "No normalized result was captured.")
+  ]);
+}
+
+function renderDebugBlock(title: string, value: string): HTMLElement {
+  return h("details", { className: "debug-block" }, [
+    h("summary", { text: title }),
+    h("pre", { text: value })
+  ]);
+}
+
+function getStatusDebug(status: AnalysisStatus | undefined): AnalysisDebugInfo | undefined {
+  if (status?.status === "result" || status?.status === "error") {
+    return status.debug;
+  }
+
+  return undefined;
+}
+
+function formatDebugValue(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function compactDebugModel(model: string): string {
+  return model.length > 34 ? `${model.slice(0, 31)}...` : model;
+}
+
+function brandLogo(): HTMLImageElement {
+  const img = document.createElement("img");
+  img.className = "brand-mark";
+  img.src = "/icons/icon-128.png";
+  img.width = 34;
+  img.height = 34;
+  img.alt = "Mandarin Lens";
+  return img;
 }
 
 function chartIcon(): SVGSVGElement {

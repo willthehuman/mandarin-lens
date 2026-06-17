@@ -46,6 +46,24 @@ export interface AnalysisResult {
   createdAt: string;
 }
 
+export interface AnalysisDebugInfo {
+  provider: ProviderName;
+  model: string;
+  request: AnalysisRequest;
+  systemPrompt: string;
+  userPrompt: string;
+  providerRequest: unknown;
+  rawResponse?: string;
+  normalizedResult?: AnalysisResult;
+  error?: string;
+  createdAt: string;
+}
+
+export interface AnalysisOutcome {
+  result: AnalysisResult;
+  debug: AnalysisDebugInfo;
+}
+
 export interface AnalysisError {
   message: string;
   details?: string;
@@ -67,6 +85,7 @@ export type AnalysisStatus =
       status: "result";
       request: AnalysisRequest;
       result: AnalysisResult;
+      debug?: AnalysisDebugInfo;
     }
   | {
       status: "error";
@@ -75,6 +94,7 @@ export type AnalysisStatus =
       provider?: ProviderName;
       model?: string;
       failedAt: string;
+      debug?: AnalysisDebugInfo;
     };
 
 export interface AnalyzeSelectionMessage {

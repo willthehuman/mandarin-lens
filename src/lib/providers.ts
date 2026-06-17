@@ -1,6 +1,6 @@
 import { buildSystemPrompt, buildUserPrompt } from "./prompts";
 import { parseAnalysisResult } from "./resultParser";
-import type { AnalysisRequest, AnalysisResult, Settings, TestProviderResponse } from "./types";
+import type { AnalysisDebugInfo, AnalysisOutcome, AnalysisRequest, Settings, TestProviderResponse } from "./types";
 
 type Fetcher = typeof fetch;
 const OLLAMA_CHAT_TIMEOUT_MS = 180_000;
@@ -35,7 +35,7 @@ export async function analyzeRequest(
   request: AnalysisRequest,
   settings: Settings,
   fetcher: Fetcher = fetch
-): Promise<AnalysisResult> {
+): Promise<AnalysisOutcome> {
   if (settings.provider === "openrouter") {
     return analyzeWithOpenRouter(request, settings, fetcher);
   }
@@ -49,7 +49,7 @@ export async function testProvider(settings: Settings, fetcher: Fetcher = fetch)
       await assertOllamaReachable(settings, fetcher);
     }
 
-    const result = await analyzeRequest(
+    const outcome = await analyzeRequest(
       {
         kind: "text",
         text: "hello"
@@ -60,7 +60,7 @@ export async function testProvider(settings: Settings, fetcher: Fetcher = fetch)
 
     return {
       ok: true,
-      message: `Connected to ${settings.provider} using ${result.model}.`
+      message: `Connected to ${settings.provider} using ${outcome.result.model}.`
     };
   } catch (error) {
     return {
@@ -136,8 +136,10 @@ async function analyzeWithOllama(
   request: AnalysisRequest,
   settings: Settings,
   fetcher: Fetcher
-): Promise<AnalysisResult> {
+): Promise<AnalysisOutcome> {
   const images = request.kind === "image" ? [await imageUrlToBase64(request.srcUrl, fetcher)] : undefined;
+  const requestBody = buildOllamaRequestBody(request, settings, images);
+  const debug = createDebugInfo("ollama", settings.ollamaModel, request, sanitizeDebugValue(requestBody));
   const response = await fetchWithTimeout(
     fetcher,
     `${settings.ollamaBaseUrl}/api/chat`,
@@ -146,31 +148,29 @@ async function analyzeWithOllama(
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(buildOllamaRequestBody(request, settings, images))
+      body: JSON.stringify(requestBody)
     },
     OLLAMA_CHAT_TIMEOUT_MS,
     `Ollama analysis with ${settings.ollamaModel}`
   );
 
   if (!response.ok) {
-    throw new Error(await buildOllamaHttpError(response, settings));
+    throw debugError(await buildOllamaHttpError(response, settings, debug), debug);
   }
 
-  const data = (await response.json()) as { message?: { content?: string }; error?: string };
+  const data = parseProviderJson<{ message?: { content?: string }; error?: string }>(await response.text(), debug);
 
   if (data.error) {
-    throw new Error(data.error);
+    throw debugError(data.error, debug);
   }
 
   const content = data.message?.content;
   if (!content) {
-    throw new Error("Ollama returned an empty response.");
+    throw debugError("Ollama returned an empty response.", debug);
   }
 
-  return parseAnalysisResult(content, request, {
-    provider: "ollama",
-    model: settings.ollamaModel
-  });
+  debug.rawResponse = content;
+  return parseWithDebug(content, request, debug);
 }
 
 async function assertOllamaReachable(settings: Settings, fetcher: Fetcher): Promise<void> {
@@ -202,8 +202,11 @@ async function assertOllamaReachable(settings: Settings, fetcher: Fetcher): Prom
   }
 }
 
-async function buildOllamaHttpError(response: Response, settings: Settings): Promise<string> {
+async function buildOllamaHttpError(response: Response, settings: Settings, debug?: AnalysisDebugInfo): Promise<string> {
   const body = await safeResponseText(response);
+  if (debug && body) {
+    debug.rawResponse = body;
+  }
   const suffix = body ? ` Ollama response: ${body}` : "";
 
   if (response.status === 403) {
@@ -236,15 +239,21 @@ function isString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function analyzeWithOpenRouter(
   request: AnalysisRequest,
   settings: Settings,
   fetcher: Fetcher
-): Promise<AnalysisResult> {
+): Promise<AnalysisOutcome> {
   if (!settings.openRouterApiKey) {
     throw new Error("Add an OpenRouter API key in Mandarin Lens settings before using OpenRouter.");
   }
 
+  const requestBody = buildOpenRouterRequestBody(request, settings);
+  const debug = createDebugInfo("openrouter", settings.openRouterModel, request, requestBody);
   const response = await fetchWithTimeout(
     fetcher,
     "https://openrouter.ai/api/v1/chat/completions",
@@ -255,17 +264,21 @@ async function analyzeWithOpenRouter(
         "Content-Type": "application/json",
         "X-OpenRouter-Title": "Mandarin Lens"
       },
-      body: JSON.stringify(buildOpenRouterRequestBody(request, settings))
+      body: JSON.stringify(requestBody)
     },
     OPENROUTER_TIMEOUT_MS,
     `OpenRouter analysis with ${settings.openRouterModel}`
   );
 
   if (!response.ok) {
-    throw new Error(`OpenRouter returned HTTP ${response.status}. Check your API key, model, and account credits.`);
+    const body = await safeResponseText(response);
+    if (body) {
+      debug.rawResponse = body;
+    }
+    throw debugError(`OpenRouter returned HTTP ${response.status}. Check your API key, model, and account credits.`, debug);
   }
 
-  const data = (await response.json()) as {
+  const data = parseProviderJson<{
     choices?: Array<{
       message?: {
         content?: string;
@@ -274,20 +287,108 @@ async function analyzeWithOpenRouter(
     error?: {
       message?: string;
     };
-  };
+  }>(await response.text(), debug);
 
   if (data.error?.message) {
-    throw new Error(data.error.message);
+    throw debugError(data.error.message, debug);
   }
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("OpenRouter returned an empty response.");
+    throw debugError("OpenRouter returned an empty response.", debug);
   }
 
-  return parseAnalysisResult(content, request, {
-    provider: "openrouter",
-    model: settings.openRouterModel
+  debug.rawResponse = content;
+  return parseWithDebug(content, request, debug);
+}
+
+export class AnalysisDebugError extends Error {
+  readonly debug: AnalysisDebugInfo;
+
+  constructor(message: string, debug: AnalysisDebugInfo) {
+    super(message);
+    this.name = "AnalysisDebugError";
+    this.debug = {
+      ...debug,
+      error: message
+    };
+  }
+}
+
+function createDebugInfo(
+  provider: AnalysisDebugInfo["provider"],
+  model: string,
+  request: AnalysisRequest,
+  providerRequest: unknown
+): AnalysisDebugInfo {
+  return {
+    provider,
+    model,
+    request: sanitizeDebugValue(request) as AnalysisRequest,
+    systemPrompt: buildSystemPrompt(),
+    userPrompt: sanitizeDebugString(buildUserPrompt(request)),
+    providerRequest,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function parseProviderJson<T>(content: string, debug: AnalysisDebugInfo): T {
+  try {
+    return JSON.parse(content) as T;
+  } catch (error) {
+    debug.rawResponse = content.trim();
+    throw debugError(error instanceof Error ? error.message : String(error), debug);
+  }
+}
+
+function parseWithDebug(content: string, request: AnalysisRequest, debug: AnalysisDebugInfo): AnalysisOutcome {
+  try {
+    const result = parseAnalysisResult(content, request, {
+      provider: debug.provider,
+      model: debug.model
+    });
+    debug.normalizedResult = result;
+    return {
+      result,
+      debug
+    };
+  } catch (error) {
+    throw debugError(error instanceof Error ? error.message : String(error), debug);
+  }
+}
+
+function debugError(message: string, debug: AnalysisDebugInfo): AnalysisDebugError {
+  return new AnalysisDebugError(message, debug);
+}
+
+function sanitizeDebugValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeDebugValue(item));
+  }
+
+  if (typeof value === "string") {
+    return sanitizeDebugString(value);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      key === "images" && Array.isArray(item)
+        ? item.map((image) =>
+            typeof image === "string" ? `[base64 image omitted; ${image.length} chars]` : "[image omitted]"
+          )
+        : sanitizeDebugValue(item)
+    ])
+  );
+}
+
+function sanitizeDebugString(value: string): string {
+  return value.replace(/data:([^,\s]+;base64),([^\s"')]+)/gi, (_match, metadata: string, payload: string) => {
+    return `data:${metadata},[base64 data omitted; ${payload.length} chars]`;
   });
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildOllamaRequestBody, buildOpenRouterRequestBody, testProvider } from "./providers";
+import { AnalysisDebugError, analyzeRequest, buildOllamaRequestBody, buildOpenRouterRequestBody, testProvider } from "./providers";
 import { DEFAULT_SETTINGS } from "./settings";
 import type { AnalysisRequest, Settings } from "./types";
 
@@ -54,6 +54,115 @@ describe("provider request builders", () => {
     ) as { messages: Array<{ content: string }> };
 
     expect(body.messages[1]?.content).toContain("Copy it exactly into sourceText and mandarin");
+  });
+});
+
+describe("analysis debug info", () => {
+  it("returns prompts, sanitized request data, raw response, and normalized result", async () => {
+    const rawResponse = JSON.stringify({
+      inputLanguage: "English",
+      sourceText: "hello",
+      mandarin: "你好",
+      pinyin: "ni hao",
+      literalMeaning: "you good",
+      naturalEnglish: "hello",
+      wordBreakdown: [],
+      grammarNotes: [],
+      usageNotes: [],
+      warnings: []
+    });
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        message: {
+          content: rawResponse
+        }
+      })
+    ) as unknown as typeof fetch;
+
+    const outcome = await analyzeRequest(
+      {
+        kind: "text",
+        text: "hello"
+      },
+      {
+        ...settings,
+        provider: "ollama"
+      },
+      fetcher
+    );
+
+    expect(outcome.result.mandarin).toBe("你好");
+    expect(outcome.debug.provider).toBe("ollama");
+    expect(outcome.debug.userPrompt).toContain("Selected text:");
+    expect(outcome.debug.rawResponse).toBe(rawResponse);
+    expect(outcome.debug.normalizedResult?.mandarin).toBe("你好");
+    expect(JSON.stringify(outcome.debug.providerRequest)).toContain("Return only valid JSON");
+  });
+
+  it("omits Ollama base64 image data from debug request payloads", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        message: {
+          content: JSON.stringify({
+            inputLanguage: "Unknown",
+            sourceText: "image",
+            mandarin: "图片",
+            pinyin: "tu pian",
+            literalMeaning: "picture",
+            naturalEnglish: "picture",
+            wordBreakdown: [],
+            grammarNotes: [],
+            usageNotes: [],
+            warnings: []
+          })
+        }
+      })
+    ) as unknown as typeof fetch;
+
+    const outcome = await analyzeRequest(
+      {
+        kind: "image",
+        srcUrl: "data:image/png;base64,abc123"
+      },
+      {
+        ...settings,
+        provider: "ollama"
+      },
+      fetcher
+    );
+
+    const debugJson = JSON.stringify(outcome.debug.providerRequest);
+    expect(debugJson).toContain("[base64 image omitted; 6 chars]");
+    expect(debugJson).not.toContain("abc123");
+  });
+
+  it("preserves raw model content when parsing fails", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        message: {
+          content: "not json"
+        }
+      })
+    ) as unknown as typeof fetch;
+
+    try {
+      await analyzeRequest(
+        {
+          kind: "text",
+          text: "hello"
+        },
+        {
+          ...settings,
+          provider: "ollama"
+        },
+        fetcher
+      );
+      throw new Error("Expected analyzeRequest to throw.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AnalysisDebugError);
+      expect((error as AnalysisDebugError).debug.rawResponse).toBe("not json");
+      expect((error as AnalysisDebugError).debug.error).toContain("valid JSON");
+    }
   });
 });
 

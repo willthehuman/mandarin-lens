@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/icons/icon-128.png" alt="Mandarin Lens logo" width="128" height="128" />
+</p>
+
 # Mandarin Lens
 
 Mandarin Lens is a Chrome Manifest V3 extension for Mandarin learners. Select English or Mandarin text on any webpage, right-click, and open a side-panel analysis with Simplified Chinese, pinyin, word breakdowns, grammar notes, and usage tips. You can also right-click images and send them to a vision-capable model for a Mandarin learning breakdown.

@@ -61,14 +61,10 @@ button {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
   width: 34px;
   height: 34px;
   border-radius: var(--radius);
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 800;
+  object-fit: contain;
   box-shadow: 0 8px 18px rgba(14, 124, 102, 0.22);
 }
 
@@ -145,15 +141,6 @@ button {
 }
 
 /* ---------- Side panel ---------- */
-
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
 
 .content {
   flex: 1;
@@ -694,9 +681,12 @@ button {
   bottom: 0;
 }
 
+.action-bar-start,
 .action-bar-end {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .feedback {
@@ -712,6 +702,67 @@ button {
 
 .feedback.error {
   color: var(--danger);
+}
+
+/* Options debug panel */
+
+.debug-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.debug-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.debug-header h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.debug-meta {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.debug-block summary {
+  padding: 9px 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.debug-block pre {
+  max-height: 260px;
+  margin: 0;
+  padding: 0 10px 10px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 @keyframes spin {
@@ -730,10 +781,6 @@ button {
 }
 
 @media (max-width: 520px) {
-  .app-header {
-    padding: 14px;
-  }
-
   .content {
     padding: 0 14px;
   }

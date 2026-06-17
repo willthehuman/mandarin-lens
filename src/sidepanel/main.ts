@@ -1,7 +1,7 @@
 import "../styles.css";
 
 import { h, replaceChildren } from "../lib/dom";
-import { activeModel, analyzeRequest } from "../lib/providers";
+import { AnalysisDebugError, activeModel, analyzeRequest } from "../lib/providers";
 import { getAnalysisStatus, getSettings, saveAnalysisStatus } from "../lib/settings";
 import type {
   AnalysisRequest,
@@ -42,18 +42,8 @@ async function initialize(): Promise<void> {
 function render(status: AnalysisStatus): void {
   replaceChildren(app, [
     h("div", { className: "app-shell" }, [
-      renderHeader(),
       h("div", { className: "content" }, [renderContent(status)]),
       renderStatusBar(status)
-    ])
-  ]);
-}
-
-function renderHeader(): HTMLElement {
-  return h("header", { className: "app-header" }, [
-    h("div", { className: "brand" }, [
-      h("div", { className: "brand-mark", text: "文" }),
-      h("h1", { className: "brand-title", text: "Mandarin Lens" })
     ])
   ]);
 }
@@ -173,16 +163,18 @@ async function runAnalysisInPanel(
 ): Promise<void> {
   try {
     const settings = await getSettings();
-    const result = await analyzeRequest(status.request, settings);
+    const outcome = await analyzeRequest(status.request, settings);
     const resultStatus: AnalysisStatus = {
       status: "result",
       request: status.request,
-      result
+      result: outcome.result,
+      debug: outcome.debug
     };
 
     await saveAnalysisStatus(resultStatus);
     render(resultStatus);
   } catch (error) {
+    const debug = error instanceof AnalysisDebugError ? error.debug : undefined;
     const errorStatus: AnalysisStatus = {
       status: "error",
       request: status.request,
@@ -193,7 +185,8 @@ async function runAnalysisInPanel(
         message: error instanceof Error ? error.message : "Analysis failed.",
         details: status.request.kind === "image" ? imageFailureHint(status.provider, status.request.srcUrl) : undefined,
         recoverable: true
-      }
+      },
+      debug
     };
 
     await saveAnalysisStatus(errorStatus);
