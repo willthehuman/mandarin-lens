@@ -1,0 +1,82 @@
+name: Release installable extension
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-installable-extension
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build and publish latest ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Package extension
+        run: |
+          cd dist
+          zip -r ../mandarin-lens-chrome-extension.zip .
+
+      - name: Verify extension ZIP
+        run: |
+          unzip -Z1 mandarin-lens-chrome-extension.zip > zip-contents.txt
+          grep -Fxq "manifest.json" zip-contents.txt
+          grep -Fxq "background.js" zip-contents.txt
+          grep -Fxq "options.html" zip-contents.txt
+          grep -Fxq "sidepanel.html" zip-contents.txt
+          grep -Eq "^assets/.+" zip-contents.txt
+
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -f latest "$GITHUB_SHA"
+          git push --force origin refs/tags/latest
+
+          cat > release-notes.md <<'EOF'
+          Ready-to-install unpacked Chrome extension build from the latest `main` branch.
+
+          Download `mandarin-lens-chrome-extension.zip`, unzip it, and load the unzipped folder from `chrome://extensions`.
+          EOF
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest \
+              --title "Latest installable build" \
+              --notes-file release-notes.md \
+              --latest
+          else
+            gh release create latest \
+              --title "Latest installable build" \
+              --notes-file release-notes.md \
+              --latest
+          fi
+
+          gh release upload latest mandarin-lens-chrome-extension.zip --clobber

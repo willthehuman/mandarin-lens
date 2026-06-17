@@ -4,6 +4,23 @@ Mandarin Lens is a Chrome Manifest V3 extension for Mandarin learners. Select En
 
 The extension can run against a local Ollama server or OpenRouter. Ollama is the default for a local-first workflow.
 
+## Install Mandarin Lens
+
+You do not need GitHub, Node.js, or npm to install the ready-to-use build.
+
+1. Open the [latest Mandarin Lens release](https://github.com/willthehuman/mandarin-lens/releases/latest).
+2. In the Assets section, download `mandarin-lens-chrome-extension.zip`.
+3. Do not download the files named "Source code". Chrome cannot install those directly.
+4. Unzip `mandarin-lens-chrome-extension.zip`.
+5. Open Chrome and go to `chrome://extensions`.
+6. Turn on Developer mode in the top-right corner.
+7. Click Load unpacked.
+8. Select the unzipped Mandarin Lens folder. Choose the folder that contains `manifest.json`.
+9. Pin or open Mandarin Lens from Chrome's extensions menu.
+10. Open the Mandarin Lens settings page and choose Ollama or OpenRouter.
+
+After installing a newer release, unzip the new download, go back to `chrome://extensions`, and click the reload button on Mandarin Lens.
+
 ## Features
 
 - Right-click selected English text and translate it to Simplified Mandarin.
@@ -24,18 +41,29 @@ The extension has two main surfaces:
 
 ## Requirements
 
+For regular use:
+
 - Chrome 116 or newer.
-- Node.js and npm for development.
 - Either:
   - Ollama running locally at `http://localhost:11434`, or
   - an OpenRouter API key.
 
-## Quick Start
+For development:
 
-Install dependencies and build the extension:
+- Node.js 24 or newer.
+- npm.
+
+## Developer Quick Start
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Build the unpacked extension:
+
+```bash
 npm run build
 ```
 
@@ -48,6 +76,8 @@ Load the extension in Chrome:
 5. Pin or open Mandarin Lens, then open the extension settings page if you need to change providers.
 
 After rebuilding, click the reload icon for the unpacked extension in `chrome://extensions`.
+
+GitHub Actions also builds and publishes a fresh ready-to-install ZIP on every push to `main`.
 
 ## Using Ollama
 
@@ -200,7 +230,7 @@ Some images cannot be fetched by the extension page, especially `blob:`, authent
 - Right-click image support uses image URLs. It does not capture arbitrary screen regions.
 - Ollama image support depends on the selected local model supporting vision input.
 - Model responses must be valid or recoverable JSON. If the model ignores the JSON instruction, the extension will show a parse error.
-- This is an unpacked/development extension; Chrome Web Store packaging metadata has not been added yet.
+- Mandarin Lens is not listed in the Chrome Web Store yet. Use the release ZIP for normal installation, or build the unpacked extension locally for development.
 
 ## License
 
