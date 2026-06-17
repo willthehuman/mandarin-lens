@@ -27,6 +27,7 @@ export function buildSystemPrompt(): string {
     "For Mandarin source text, sourceText and mandarin must be an exact character-for-character copy of the selected text.",
     "Never rewrite, paraphrase, romanize, transliterate, or substitute characters in existing Mandarin source text.",
     "If translating from English or another language, provide natural Mandarin first, then learning details.",
+    "Any page URL or surrounding context is reference only. Never translate it or include it in sourceText, mandarin, or the word breakdown.",
     "Prefer useful vocabulary segmentation over character-by-character breakdown unless a single character is meaningful.",
     "The response must match this schema exactly enough for a parser to consume it:",
     RESULT_SCHEMA_DESCRIPTION
@@ -40,8 +41,10 @@ export function buildUserPrompt(request: AnalysisRequest): string {
       "First describe what is visible in English.",
       "Then provide a concise Mandarin description or useful Mandarin vocabulary related to the image.",
       "Include pinyin, literal meaning, natural English meaning, word breakdown, grammar notes, and usage notes.",
-      `Image URL: ${request.srcUrl}`,
-      request.pageUrl ? `Page URL: ${request.pageUrl}` : ""
+      request.pageUrl
+        ? `For reference only, this image appeared on the page ${request.pageUrl}. Do not translate the URL or include it in any output field.`
+        : "",
+      `Image URL: ${request.srcUrl}`
     ]
       .filter(Boolean)
       .join("\n");
@@ -53,8 +56,10 @@ export function buildUserPrompt(request: AnalysisRequest): string {
       ? "The selected text is Mandarin. Do not translate it. Copy it exactly into sourceText and mandarin, then analyze it directly."
       : "Translate the selected text into natural Simplified Chinese, then analyze the Mandarin.",
     "Include pinyin, literal meaning, natural English meaning, word breakdown, grammar notes, and usage notes.",
-    `Selected text:\n${request.text}`,
-    request.pageUrl ? `Page URL: ${request.pageUrl}` : ""
+    request.pageUrl
+      ? `For reference only, this text appeared on the page ${request.pageUrl}. Do not translate the URL or include it in any output field.`
+      : "",
+    `Selected text to analyze:\n${request.text}`
   ]
     .filter(Boolean)
     .join("\n");

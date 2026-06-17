@@ -93,7 +93,7 @@ describe("analysis debug info", () => {
 
     expect(outcome.result.mandarin).toBe("你好");
     expect(outcome.debug.provider).toBe("ollama");
-    expect(outcome.debug.userPrompt).toContain("Selected text:");
+    expect(outcome.debug.userPrompt).toContain("Selected text to analyze:");
     expect(outcome.debug.rawResponse).toBe(rawResponse);
     expect(outcome.debug.normalizedResult?.mandarin).toBe("你好");
     expect(JSON.stringify(outcome.debug.providerRequest)).toContain("Return only valid JSON");
