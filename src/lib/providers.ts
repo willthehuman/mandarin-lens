@@ -12,6 +12,10 @@ const OPENROUTER_APP_URL = "https://github.com/willthehuman/mandarin-lens";
 const OPENROUTER_APP_TITLE = "Mandarin Lens";
 const OPENROUTER_APP_CATEGORIES = "writing-assistant";
 
+interface AnalyzeRequestOptions {
+  abortOnTimeout?: boolean;
+}
+
 interface ChatMessage {
   role: "system" | "user";
   content:
@@ -38,13 +42,14 @@ export function activeModel(settings: Settings): string {
 export async function analyzeRequest(
   request: AnalysisRequest,
   settings: Settings,
-  fetcher: Fetcher = fetch
+  fetcher: Fetcher = fetch,
+  options: AnalyzeRequestOptions = {}
 ): Promise<AnalysisOutcome> {
   if (settings.provider === "openrouter") {
-    return analyzeWithOpenRouter(request, settings, fetcher);
+    return analyzeWithOpenRouter(request, settings, fetcher, options);
   }
 
-  return analyzeWithOllama(request, settings, fetcher);
+  return analyzeWithOllama(request, settings, fetcher, options);
 }
 
 export async function testProvider(settings: Settings, fetcher: Fetcher = fetch): Promise<TestProviderResponse> {
@@ -59,7 +64,8 @@ export async function testProvider(settings: Settings, fetcher: Fetcher = fetch)
         text: "hello"
       },
       settings,
-      fetcher
+      fetcher,
+      { abortOnTimeout: true }
     );
 
     return {
@@ -162,7 +168,8 @@ export class ProviderTimeoutError extends Error {
 async function analyzeWithOllama(
   request: AnalysisRequest,
   settings: Settings,
-  fetcher: Fetcher
+  fetcher: Fetcher,
+  options: AnalyzeRequestOptions
 ): Promise<AnalysisOutcome> {
   const images = request.kind === "image" ? [await imageUrlToBase64(request.srcUrl, fetcher)] : undefined;
   const requestBody = buildOllamaRequestBody(request, settings, images);
@@ -178,7 +185,8 @@ async function analyzeWithOllama(
       body: JSON.stringify(requestBody)
     },
     analysisTimeoutMs(settings),
-    `Ollama analysis with ${settings.ollamaModel}`
+    `Ollama analysis with ${settings.ollamaModel}`,
+    options.abortOnTimeout === true
   );
 
   if (!response.ok) {
@@ -273,7 +281,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function analyzeWithOpenRouter(
   request: AnalysisRequest,
   settings: Settings,
-  fetcher: Fetcher
+  fetcher: Fetcher,
+  options: AnalyzeRequestOptions
 ): Promise<AnalysisOutcome> {
   if (!settings.openRouterApiKey) {
     throw new Error("Add an OpenRouter API key in Mandarin Lens settings before using OpenRouter.");
@@ -290,7 +299,8 @@ async function analyzeWithOpenRouter(
       body: JSON.stringify(requestBody)
     },
     analysisTimeoutMs(settings),
-    `OpenRouter analysis with ${settings.openRouterModel}`
+    `OpenRouter analysis with ${settings.openRouterModel}`,
+    options.abortOnTimeout === true
   );
 
   if (!response.ok) {
@@ -458,8 +468,13 @@ async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   timeoutMs: number,
-  label: string
+  label: string,
+  abortOnTimeout = true
 ): Promise<Response> {
+  if (!abortOnTimeout) {
+    return fetcher(input, init);
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 

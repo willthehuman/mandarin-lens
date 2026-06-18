@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Mandarin Lens",
   "description": "Analyze selected English or Mandarin text, plus right-clicked images, with Mandarin, pinyin, and learning notes.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "storage", "identity"],
   "host_permissions": [

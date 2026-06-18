@@ -2,7 +2,7 @@ import "../styles.css";
 
 import { h, replaceChildren } from "../lib/dom";
 import { buildRubyTokens } from "../lib/pinyinDisplay";
-import { AnalysisDebugError, ProviderTimeoutError, activeModel, analyzeRequest } from "../lib/providers";
+import { AnalysisDebugError, activeModel, analyzeRequest } from "../lib/providers";
 import { getAnalysisStatus, getSettings, saveAnalysisStatus } from "../lib/settings";
 import { applyTheme } from "../lib/theme";
 import type {
@@ -22,8 +22,10 @@ if (!appRoot) {
 
 const app = appRoot;
 let activeAnalysisKey: string | undefined;
+let activeTimeoutId: number | undefined;
 let currentSettings: Settings | undefined;
 let currentStatus: AnalysisStatus | undefined;
+let waitingNoticeKey: string | undefined;
 let characterDetailsExpanded = true;
 
 void initialize();
@@ -98,15 +100,20 @@ function renderContent(status: AnalysisStatus, settings: Settings | undefined): 
   }
 
   if (status.status === "loading") {
+    const isWaitingNoticeVisible = waitingNoticeKey === loadingStatusKey(status);
+
     return h("div", { className: "stack" }, [
-      h("div", { className: "loading-row" }, [h("span", { className: "spinner" }), h("span", { text: "Analyzing…" })]),
+      h("div", { className: "loading-row" }, [
+        h("span", { className: "spinner" }),
+        h("span", { text: isWaitingNoticeVisible ? "Still waiting…" : "Analyzing…" })
+      ]),
+      isWaitingNoticeVisible ? renderWaitingNotice(status, settings) : undefined,
       renderSourceSection(status.request)
     ]);
   }
 
   if (status.status === "error") {
     const retryRequest = status.request;
-    const retryLabel = status.error.timedOut ? "Wait again" : "Retry";
 
     return h("div", { className: "stack" }, [
       retryRequest ? renderSourceSection(retryRequest) : undefined,
@@ -117,7 +124,7 @@ function renderContent(status: AnalysisStatus, settings: Settings | undefined): 
           retryRequest
             ? h("button", {
                 className: "primary-button",
-                text: retryLabel,
+                text: "Retry",
                 onClick: () => {
                   void retryAnalysis(retryRequest);
                 }
@@ -140,14 +147,18 @@ function renderContent(status: AnalysisStatus, settings: Settings | undefined): 
 
 function maybeRunAnalysis(status: AnalysisStatus): void {
   if (status.status !== "loading") {
+    clearAnalysisTimeout();
+    waitingNoticeKey = undefined;
     return;
   }
 
-  const analysisKey = `${status.startedAt}:${status.provider}:${status.model}:${requestKey(status.request)}`;
+  const analysisKey = loadingStatusKey(status);
   if (activeAnalysisKey === analysisKey) {
     return;
   }
 
+  clearAnalysisTimeout();
+  waitingNoticeKey = undefined;
   activeAnalysisKey = analysisKey;
   void runAnalysisInPanel(status, analysisKey);
 }
@@ -177,7 +188,14 @@ async function runAnalysisInPanel(
     const settings = await getSettings();
     currentSettings = settings;
     applyTheme(settings.theme);
+    scheduleAnalysisTimeout(status, settings, analysisKey);
     const outcome = await analyzeRequest(status.request, settings);
+    if (activeAnalysisKey !== analysisKey) {
+      return;
+    }
+
+    clearAnalysisTimeout();
+    waitingNoticeKey = undefined;
     const resultStatus: AnalysisStatus = {
       status: "result",
       request: status.request,
@@ -189,8 +207,13 @@ async function runAnalysisInPanel(
     await saveAnalysisStatus(resultStatus);
     render(resultStatus, settings);
   } catch (error) {
+    if (activeAnalysisKey !== analysisKey) {
+      return;
+    }
+
+    clearAnalysisTimeout();
+    waitingNoticeKey = undefined;
     const debug = error instanceof AnalysisDebugError ? error.debug : undefined;
-    const timedOut = error instanceof ProviderTimeoutError;
     const errorStatus: AnalysisStatus = {
       status: "error",
       request: status.request,
@@ -200,8 +223,7 @@ async function runAnalysisInPanel(
       error: {
         message: error instanceof Error ? error.message : "Analysis failed.",
         details: status.request.kind === "image" ? imageFailureHint(status.provider, status.request.srcUrl) : undefined,
-        recoverable: true,
-        timedOut
+        recoverable: true
       },
       debug
     };
@@ -211,8 +233,69 @@ async function runAnalysisInPanel(
   } finally {
     if (activeAnalysisKey === analysisKey) {
       activeAnalysisKey = undefined;
+      clearAnalysisTimeout();
+      waitingNoticeKey = undefined;
     }
   }
+}
+
+function renderWaitingNotice(
+  status: Extract<AnalysisStatus, { status: "loading" }>,
+  settings: Settings | undefined
+): HTMLElement {
+  const waitSeconds = settings?.analysisTimeoutSeconds || 180;
+
+  return h("section", { className: "warning-panel" }, [
+    h("h2", { text: `Still waiting after ${formatSeconds(waitSeconds)}` }),
+    h("p", { text: "The model request is still running. You can keep waiting or start over with a fresh request." }),
+    h("div", { className: "warning-actions actions" }, [
+      h("button", {
+        className: "primary-button",
+        text: "Continue waiting",
+        onClick: () => {
+          continueWaiting(status);
+        }
+      }),
+      h("button", {
+        className: "secondary-button",
+        text: "Retry",
+        onClick: () => {
+          void retryAnalysis(status.request);
+        }
+      })
+    ])
+  ]);
+}
+
+function continueWaiting(status: Extract<AnalysisStatus, { status: "loading" }>): void {
+  const analysisKey = loadingStatusKey(status);
+  waitingNoticeKey = undefined;
+  scheduleAnalysisTimeout(status, currentSettings, analysisKey);
+  render(status, currentSettings);
+}
+
+function scheduleAnalysisTimeout(
+  status: Extract<AnalysisStatus, { status: "loading" }>,
+  settings: Settings | undefined,
+  analysisKey: string
+): void {
+  clearAnalysisTimeout();
+  activeTimeoutId = window.setTimeout(() => {
+    if (activeAnalysisKey !== analysisKey || currentStatus?.status !== "loading") {
+      return;
+    }
+
+    waitingNoticeKey = analysisKey;
+    render(status, currentSettings);
+  }, analysisTimeoutMs(settings));
+}
+
+function clearAnalysisTimeout(): void {
+  if (activeTimeoutId !== undefined) {
+    window.clearTimeout(activeTimeoutId);
+  }
+
+  activeTimeoutId = undefined;
 }
 
 function renderResult(request: AnalysisRequest, result: AnalysisResult, settings: Settings | undefined): HTMLElement {
@@ -446,6 +529,28 @@ function statusModel(status: AnalysisStatus): string | undefined {
     return status.result.model;
   }
   return undefined;
+}
+
+function loadingStatusKey(status: Extract<AnalysisStatus, { status: "loading" }>): string {
+  return `${status.startedAt}:${status.provider}:${status.model}:${requestKey(status.request)}`;
+}
+
+function analysisTimeoutMs(settings: Settings | undefined): number {
+  const seconds = normalizedAnalysisTimeoutSeconds(settings?.analysisTimeoutSeconds);
+  return seconds * 1000;
+}
+
+function formatSeconds(value: number): string {
+  const seconds = normalizedAnalysisTimeoutSeconds(value);
+  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+}
+
+function normalizedAnalysisTimeoutSeconds(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 180;
+  }
+
+  return Math.min(3600, Math.max(10, Math.round(value)));
 }
 
 function providerLabel(provider: ProviderName | undefined): string {

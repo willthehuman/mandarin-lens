@@ -296,7 +296,7 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
           h("div", { className: "field" }, [
             h("label", { htmlFor: analysisTimeoutSecondsId, text: "Analysis Timeout (seconds)" }),
             fields.analysisTimeoutSeconds,
-            h("p", { className: "field-hint", text: "Used for model responses and the Wait again action." })
+            h("p", { className: "field-hint", text: "How long to wait before showing Continue waiting." })
           ]),
           h("div", { className: "field" }, [
             h("label", { htmlFor: openRouterApiKeyId, text: "OpenRouter API Key" }),

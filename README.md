@@ -34,7 +34,7 @@ After installing a newer release, unzip the new download, go back to `chrome://e
 - Configure Ollama or OpenRouter from the extension settings page.
 - Store provider settings locally with `chrome.storage.local`.
 - Use structured JSON model output so the side panel can render predictable sections.
-- Show clear errors for missing models, rejected Ollama origins, invalid model output, and request timeouts, with a Wait again action for timed-out requests.
+- Show clear errors for missing models, rejected Ollama origins, invalid model output, and slow model responses.
 
 ## Screens
 
@@ -222,9 +222,9 @@ Reload the extension in `chrome://extensions`. The side panel must be opened dir
 
 ### The side panel stays on "Analyzing"
 
-Local models can be slow, especially on the first request. Mandarin Lens now runs analysis from the visible side panel and applies request timeouts. If it still hangs, open the extension service worker console and side panel console from `chrome://extensions` to inspect runtime errors.
+Local models can be slow, especially on the first request. Mandarin Lens runs analysis from the visible side panel and shows a Continue waiting prompt when a request takes longer than the configured analysis timeout. The model request keeps running unless you choose Retry.
 
-If a model response times out, use Wait again in the side panel to rerun the same request. Adjust Analysis Timeout in settings when a local model consistently needs more time.
+Adjust Analysis Timeout in settings when a local model consistently needs more time before you want to be prompted.
 
 ### Ollama returns HTTP 403
 

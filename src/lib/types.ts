@@ -86,7 +86,6 @@ export interface AnalysisError {
   message: string;
   details?: string;
   recoverable?: boolean;
-  timedOut?: boolean;
 }
 
 export type AnalysisStatus =

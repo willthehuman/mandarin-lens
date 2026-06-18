@@ -299,7 +299,45 @@ describe("provider errors", () => {
     expect(response.ok).toBe(true);
   });
 
-  it("uses the configured analysis timeout for model requests", async () => {
+  it("leaves model requests uncancelled by default", async () => {
+    const rawResponse = JSON.stringify({
+      inputLanguage: "English",
+      sourceText: "hello",
+      mandarin: "你好",
+      pinyin: "ni hao",
+      literalMeaning: "you good",
+      naturalEnglish: "hello",
+      wordBreakdown: [],
+      grammarNotes: [],
+      usageNotes: [],
+      warnings: []
+    });
+    let signal: RequestInit["signal"];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      signal = init?.signal;
+      return Response.json({
+        message: {
+          content: rawResponse
+        }
+      });
+    }) as unknown as typeof fetch;
+
+    await analyzeRequest(
+      {
+        kind: "text",
+        text: "hello"
+      },
+      {
+        ...settings,
+        provider: "ollama"
+      },
+      fetcher
+    );
+
+    expect(signal).toBeUndefined();
+  });
+
+  it("uses the configured analysis timeout when aborts are requested", async () => {
     vi.useFakeTimers();
 
     try {
@@ -322,13 +360,18 @@ describe("provider errors", () => {
           provider: "ollama",
           analysisTimeoutSeconds: 12
         },
-        fetcher
+        fetcher,
+        { abortOnTimeout: true }
       );
 
-      const rejection = expect(promise).rejects.toThrow(ProviderTimeoutError);
+      const errorPromise = promise.catch((caught: unknown) => caught);
       await vi.advanceTimersByTimeAsync(12_000);
-      await rejection;
-      await expect(promise).rejects.toThrow("12 seconds");
+
+      const error = await errorPromise;
+      expect(error).toBeInstanceOf(ProviderTimeoutError);
+      expect(error).toMatchObject({
+        message: expect.stringContaining("12 seconds")
+      });
     } finally {
       vi.useRealTimers();
     }
