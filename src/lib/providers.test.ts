@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   AnalysisDebugError,
+  ProviderTimeoutError,
   analyzeRequest,
   buildOllamaRequestBody,
   buildOpenRouterHeaders,
@@ -71,6 +72,21 @@ describe("provider request builders", () => {
     ) as { messages: Array<{ content: string }> };
 
     expect(body.messages[1]?.content).toContain("Copy it exactly into sourceText and mandarin");
+  });
+
+  it("passes the Ollama thinking toggle through to the chat API", () => {
+    const body = buildOllamaRequestBody(
+      {
+        kind: "text",
+        text: "hello"
+      },
+      {
+        ...settings,
+        ollamaThinkingEnabled: true
+      }
+    ) as { think: boolean };
+
+    expect(body.think).toBe(true);
   });
 });
 
@@ -281,5 +297,40 @@ describe("provider errors", () => {
     );
 
     expect(response.ok).toBe(true);
+  });
+
+  it("uses the configured analysis timeout for model requests", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fetcher = vi.fn(
+        (_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          })
+      ) as unknown as typeof fetch;
+
+      const promise = analyzeRequest(
+        {
+          kind: "text",
+          text: "hello"
+        },
+        {
+          ...settings,
+          provider: "ollama",
+          analysisTimeoutSeconds: 12
+        },
+        fetcher
+      );
+
+      const rejection = expect(promise).rejects.toThrow(ProviderTimeoutError);
+      await vi.advanceTimersByTimeAsync(12_000);
+      await rejection;
+      await expect(promise).rejects.toThrow("12 seconds");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -3,10 +3,11 @@ import { parseAnalysisResult } from "./resultParser";
 import type { AnalysisDebugInfo, AnalysisOutcome, AnalysisRequest, Settings, TestProviderResponse } from "./types";
 
 type Fetcher = typeof fetch;
-const OLLAMA_CHAT_TIMEOUT_MS = 180_000;
+const DEFAULT_ANALYSIS_TIMEOUT_MS = 180_000;
+const MIN_ANALYSIS_TIMEOUT_SECONDS = 10;
+const MAX_ANALYSIS_TIMEOUT_SECONDS = 3600;
 const OLLAMA_TAGS_TIMEOUT_MS = 20_000;
 const IMAGE_FETCH_TIMEOUT_MS = 45_000;
-const OPENROUTER_TIMEOUT_MS = 120_000;
 const OPENROUTER_APP_URL = "https://github.com/willthehuman/mandarin-lens";
 const OPENROUTER_APP_TITLE = "Mandarin Lens";
 const OPENROUTER_APP_CATEGORIES = "writing-assistant";
@@ -82,6 +83,7 @@ export function buildOllamaRequestBody(request: AnalysisRequest, settings: Setti
     model: settings.ollamaModel,
     stream: false,
     format: "json",
+    think: settings.ollamaThinkingEnabled,
     options: {
       temperature: 0.2
     },
@@ -147,6 +149,16 @@ export function buildOpenRouterHeaders(apiKey: string): Record<string, string> {
   };
 }
 
+export class ProviderTimeoutError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(label: string, timeoutMs: number) {
+    super(`${label} timed out after ${formatTimeoutSeconds(timeoutMs)}.`);
+    this.name = "ProviderTimeoutError";
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 async function analyzeWithOllama(
   request: AnalysisRequest,
   settings: Settings,
@@ -165,7 +177,7 @@ async function analyzeWithOllama(
       },
       body: JSON.stringify(requestBody)
     },
-    OLLAMA_CHAT_TIMEOUT_MS,
+    analysisTimeoutMs(settings),
     `Ollama analysis with ${settings.ollamaModel}`
   );
 
@@ -277,7 +289,7 @@ async function analyzeWithOpenRouter(
       headers: buildOpenRouterHeaders(settings.openRouterApiKey),
       body: JSON.stringify(requestBody)
     },
-    OPENROUTER_TIMEOUT_MS,
+    analysisTimeoutMs(settings),
     `OpenRouter analysis with ${settings.openRouterModel}`
   );
 
@@ -458,13 +470,30 @@ async function fetchWithTimeout(
     });
   } catch (error) {
     if (isAbortError(error)) {
-      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+      throw new ProviderTimeoutError(label, timeoutMs);
     }
 
     throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function analysisTimeoutMs(settings: Settings): number {
+  if (typeof settings.analysisTimeoutSeconds !== "number" || !Number.isFinite(settings.analysisTimeoutSeconds)) {
+    return DEFAULT_ANALYSIS_TIMEOUT_MS;
+  }
+
+  const seconds = Math.min(
+    MAX_ANALYSIS_TIMEOUT_SECONDS,
+    Math.max(MIN_ANALYSIS_TIMEOUT_SECONDS, Math.round(settings.analysisTimeoutSeconds))
+  );
+  return seconds * 1000;
+}
+
+function formatTimeoutSeconds(timeoutMs: number): string {
+  const seconds = Math.round(timeoutMs / 1000);
+  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
 }
 
 function isAbortError(error: unknown): boolean {

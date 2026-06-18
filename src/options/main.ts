@@ -45,6 +45,8 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
   const themeName = "theme";
   const ollamaBaseUrlId = "ollamaBaseUrl";
   const ollamaModelId = "ollamaModel";
+  const ollamaThinkingEnabledId = "ollamaThinkingEnabled";
+  const analysisTimeoutSecondsId = "analysisTimeoutSeconds";
   const openRouterApiKeyId = "openRouterApiKey";
   const openRouterModelId = "openRouterModel";
   const preferSameModelForVisionId = "preferSameModelForVision";
@@ -119,6 +121,20 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
       type: "text",
       value: settings.ollamaModel,
       placeholder: "gemma4:e4b-it-qat"
+    }),
+    ollamaThinkingEnabled: h("input", {
+      id: ollamaThinkingEnabledId,
+      type: "checkbox",
+      checked: settings.ollamaThinkingEnabled
+    }),
+    analysisTimeoutSeconds: h("input", {
+      id: analysisTimeoutSecondsId,
+      type: "number",
+      value: String(settings.analysisTimeoutSeconds),
+      min: "10",
+      max: "3600",
+      step: "10",
+      placeholder: "180"
     }),
     openRouterApiKey: h("input", {
       id: openRouterApiKeyId,
@@ -266,6 +282,21 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
             h("label", { htmlFor: ollamaModelId, text: "Ollama Model" }),
             fields.ollamaModel,
             h("p", { className: "field-hint", text: "Model must be available in your local Ollama instance." })
+          ]),
+          h("div", { className: "toggle-row" }, [
+            h("div", {}, [
+              h("div", { className: "field-label", text: "Ollama thinking" }),
+              h("div", {
+                className: "field-hint",
+                text: "Send Ollama's think parameter for models that support thinking."
+              })
+            ]),
+            switchControl(fields.ollamaThinkingEnabled)
+          ]),
+          h("div", { className: "field" }, [
+            h("label", { htmlFor: analysisTimeoutSecondsId, text: "Analysis Timeout (seconds)" }),
+            fields.analysisTimeoutSeconds,
+            h("p", { className: "field-hint", text: "Used for model responses and the Wait again action." })
           ]),
           h("div", { className: "field" }, [
             h("label", { htmlFor: openRouterApiKeyId, text: "OpenRouter API Key" }),
@@ -525,6 +556,8 @@ function readSettingsFromForm(previousSettings: Settings): Settings {
     provider: (providerInput?.value === "openrouter" ? "openrouter" : "ollama") as ProviderName,
     ollamaBaseUrl: readInput("ollamaBaseUrl"),
     ollamaModel: readInput("ollamaModel"),
+    ollamaThinkingEnabled: document.querySelector<HTMLInputElement>("#ollamaThinkingEnabled")?.checked ?? false,
+    analysisTimeoutSeconds: Number(readInput("analysisTimeoutSeconds")),
     openRouterApiKey,
     openRouterModel: readInput("openRouterModel"),
     openRouterAuthSource: keepsOAuthKey ? "oauth" : "manual",

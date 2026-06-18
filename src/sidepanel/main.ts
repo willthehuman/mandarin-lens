@@ -2,7 +2,7 @@ import "../styles.css";
 
 import { h, replaceChildren } from "../lib/dom";
 import { buildRubyTokens } from "../lib/pinyinDisplay";
-import { AnalysisDebugError, activeModel, analyzeRequest } from "../lib/providers";
+import { AnalysisDebugError, ProviderTimeoutError, activeModel, analyzeRequest } from "../lib/providers";
 import { getAnalysisStatus, getSettings, saveAnalysisStatus } from "../lib/settings";
 import { applyTheme } from "../lib/theme";
 import type {
@@ -106,6 +106,7 @@ function renderContent(status: AnalysisStatus, settings: Settings | undefined): 
 
   if (status.status === "error") {
     const retryRequest = status.request;
+    const retryLabel = status.error.timedOut ? "Wait again" : "Retry";
 
     return h("div", { className: "stack" }, [
       retryRequest ? renderSourceSection(retryRequest) : undefined,
@@ -116,7 +117,7 @@ function renderContent(status: AnalysisStatus, settings: Settings | undefined): 
           retryRequest
             ? h("button", {
                 className: "primary-button",
-                text: "Retry",
+                text: retryLabel,
                 onClick: () => {
                   void retryAnalysis(retryRequest);
                 }
@@ -189,6 +190,7 @@ async function runAnalysisInPanel(
     render(resultStatus, settings);
   } catch (error) {
     const debug = error instanceof AnalysisDebugError ? error.debug : undefined;
+    const timedOut = error instanceof ProviderTimeoutError;
     const errorStatus: AnalysisStatus = {
       status: "error",
       request: status.request,
@@ -198,7 +200,8 @@ async function runAnalysisInPanel(
       error: {
         message: error instanceof Error ? error.message : "Analysis failed.",
         details: status.request.kind === "image" ? imageFailureHint(status.provider, status.request.srcUrl) : undefined,
-        recoverable: true
+        recoverable: true,
+        timedOut
       },
       debug
     };

@@ -4,6 +4,8 @@ export const DEFAULT_SETTINGS: Settings = {
   provider: "ollama",
   ollamaBaseUrl: "http://localhost:11434",
   ollamaModel: "gemma4:e4b-it-qat",
+  ollamaThinkingEnabled: false,
+  analysisTimeoutSeconds: 180,
   openRouterApiKey: "",
   openRouterModel: "qwen/qwen3.6-flash",
   openRouterAuthSource: "manual",
@@ -14,6 +16,8 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const LEGACY_DEFAULT_OLLAMA_MODELS = new Set(["qwen2.5vl:7b", "gemma4:e4b-it-qat"]);
+const MIN_ANALYSIS_TIMEOUT_SECONDS = 10;
+const MAX_ANALYSIS_TIMEOUT_SECONDS = 3600;
 const SETTINGS_KEY = "settings";
 const STATUS_KEY = "analysisStatus";
 
@@ -24,6 +28,8 @@ export function normalizeSettings(value: Partial<Settings> | undefined): Setting
     provider: value?.provider === "openrouter" ? "openrouter" : "ollama",
     ollamaBaseUrl: trimTrailingSlash(value?.ollamaBaseUrl || DEFAULT_SETTINGS.ollamaBaseUrl),
     ollamaModel: normalizeOllamaModel(value?.ollamaModel),
+    ollamaThinkingEnabled: value?.ollamaThinkingEnabled === true,
+    analysisTimeoutSeconds: normalizeAnalysisTimeoutSeconds(value?.analysisTimeoutSeconds),
     openRouterApiKey: value?.openRouterApiKey?.trim() || "",
     openRouterModel: value?.openRouterModel?.trim() || DEFAULT_SETTINGS.openRouterModel,
     openRouterAuthSource: normalizeOpenRouterAuthSource(value),
@@ -68,6 +74,14 @@ function normalizeOllamaModel(value: string | undefined): string {
   }
 
   return model;
+}
+
+function normalizeAnalysisTimeoutSeconds(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_SETTINGS.analysisTimeoutSeconds;
+  }
+
+  return Math.min(MAX_ANALYSIS_TIMEOUT_SECONDS, Math.max(MIN_ANALYSIS_TIMEOUT_SECONDS, Math.round(value)));
 }
 
 function normalizeOpenRouterAuthSource(value: Partial<Settings> | undefined): OpenRouterAuthSource {

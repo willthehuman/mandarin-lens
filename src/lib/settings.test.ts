@@ -11,6 +11,8 @@ describe("settings normalization", () => {
 
     expect(settings).toMatchObject({
       provider: "openrouter",
+      ollamaThinkingEnabled: false,
+      analysisTimeoutSeconds: 180,
       pinyinDisplayMode: "combined",
       showCharacterMeanings: false,
       theme: "system",
@@ -48,5 +50,13 @@ describe("settings normalization", () => {
 
     expect(settings.pinyinDisplayMode).toBe(DEFAULT_SETTINGS.pinyinDisplayMode);
     expect(settings.theme).toBe(DEFAULT_SETTINGS.theme);
+  });
+
+  it("normalizes analysis timeout bounds", () => {
+    expect(normalizeSettings({ analysisTimeoutSeconds: 9 }).analysisTimeoutSeconds).toBe(10);
+    expect(normalizeSettings({ analysisTimeoutSeconds: 3601 }).analysisTimeoutSeconds).toBe(3600);
+    expect(normalizeSettings({ analysisTimeoutSeconds: Number.NaN }).analysisTimeoutSeconds).toBe(
+      DEFAULT_SETTINGS.analysisTimeoutSeconds
+    );
   });
 });

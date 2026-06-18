@@ -19,6 +19,8 @@ export interface Settings {
   provider: ProviderName;
   ollamaBaseUrl: string;
   ollamaModel: string;
+  ollamaThinkingEnabled: boolean;
+  analysisTimeoutSeconds: number;
   openRouterApiKey: string;
   openRouterModel: string;
   openRouterAuthSource: OpenRouterAuthSource;
@@ -84,6 +86,7 @@ export interface AnalysisError {
   message: string;
   details?: string;
   recoverable?: boolean;
+  timedOut?: boolean;
 }
 
 export type AnalysisStatus =

@@ -678,7 +678,8 @@ button {
 
 .field input[type="text"],
 .field input[type="password"],
-.field input[type="url"] {
+.field input[type="url"],
+.field input[type="number"] {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--border);

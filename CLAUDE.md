@@ -30,7 +30,7 @@ The extension is split across three entry points wired up in `vite.config.ts` (`
 
 **The side panel runs the actual analysis.** `src/sidepanel/main.ts` watches for a `loading` status and calls `analyzeRequest` (`src/lib/providers.ts`) from the long-lived panel page. `activeAnalysisKey` dedupes so a given (startedAt, provider, model, request) tuple only runs once even if both the storage read and the incoming message trigger it. Retry rebuilds a fresh `loading` status from current settings.
 
-**Provider adapters** (`src/lib/providers.ts`) normalize Ollama and OpenRouter to one `AnalysisResult`. Ollama uses `/api/chat` with `stream:false, format:"json"`; images are fetched and sent as base64 (`blob:` URLs are rejected — the worker can't fetch them). OpenRouter uses the OpenAI-compatible chat completions endpoint with `response_format: json_object` and `image_url` content. All requests go through `fetchWithTimeout` (per-call AbortController timeouts). HTTP 403 from Ollama is specifically translated into the `OLLAMA_ORIGINS` guidance message.
+**Provider adapters** (`src/lib/providers.ts`) normalize Ollama and OpenRouter to one `AnalysisResult`. Ollama uses `/api/chat` with `stream:false, format:"json"`, and the configured `think` value; images are fetched and sent as base64 (`blob:` URLs are rejected — the worker can't fetch them). OpenRouter uses the OpenAI-compatible chat completions endpoint with `response_format: json_object` and `image_url` content. Model requests go through `fetchWithTimeout` using the configurable analysis timeout from settings; timed-out requests surface as `ProviderTimeoutError` so the side panel can offer Wait again. HTTP 403 from Ollama is specifically translated into the `OLLAMA_ORIGINS` guidance message.
 
 **Result parsing is defensive** (`src/lib/resultParser.ts`). Models don't reliably emit clean JSON, so `parseJsonObject` tries raw parse → fenced ```json``` block → brace-matched first object. `normalizeAnalysisResult` coerces every field and drops empty word-breakdown rows. Two important behaviors:
 - If the source text `isLikelyMandarin` (`src/lib/language.ts`), the original selection is preserved verbatim as `mandarin`/`sourceText`; if the model rewrote it, the original is kept and a warning is added. The prompt also instructs the model not to alter existing Mandarin.
@@ -38,7 +38,7 @@ The extension is split across three entry points wired up in `vite.config.ts` (`
 
 **Prompts** live in `src/lib/prompts.ts`. `RESULT_SCHEMA_DESCRIPTION` is the JSON contract embedded in the system prompt — keep it in sync with the `AnalysisResult` shape in `types.ts` and the coercion in `resultParser.ts`.
 
-**Settings** (`src/lib/settings.ts`) always pass through `normalizeSettings` on read and write (trims trailing slash on base URL, migrates legacy default Ollama model names in `LEGACY_DEFAULT_OLLAMA_MODELS`, etc.). Defaults: provider `ollama`, model `gemma4:e4b-it-qat`, base URL `http://localhost:11434`.
+**Settings** (`src/lib/settings.ts`) always pass through `normalizeSettings` on read and write (trims trailing slash on base URL, migrates legacy default Ollama model names in `LEGACY_DEFAULT_OLLAMA_MODELS`, clamps analysis timeout, etc.). Defaults: provider `ollama`, model `gemma4:e4b-it-qat`, base URL `http://localhost:11434`, Ollama thinking off, analysis timeout 180 seconds.
 
 `src/lib/dom.ts` provides a tiny `h()` / `replaceChildren()` helper — the UI is hand-built DOM, no framework.
 

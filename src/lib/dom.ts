@@ -15,6 +15,9 @@ interface ElementOptions {
   colSpan?: number;
   checked?: boolean;
   placeholder?: string;
+  min?: string;
+  max?: string;
+  step?: string;
   ariaLabel?: string;
   disabled?: boolean;
   onClick?: (event: MouseEvent) => void;
@@ -47,6 +50,9 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   if (options.name && element instanceof HTMLInputElement) element.name = options.name;
   if (options.value !== undefined && element instanceof HTMLInputElement) element.value = options.value;
   if (options.placeholder && element instanceof HTMLInputElement) element.placeholder = options.placeholder;
+  if (options.min && element instanceof HTMLInputElement) element.min = options.min;
+  if (options.max && element instanceof HTMLInputElement) element.max = options.max;
+  if (options.step && element instanceof HTMLInputElement) element.step = options.step;
   if (options.checked !== undefined && element instanceof HTMLInputElement) element.checked = options.checked;
   if (options.disabled !== undefined && "disabled" in element) element.disabled = options.disabled;
   if (options.onClick) element.addEventListener("click", options.onClick as EventListener);

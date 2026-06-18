@@ -34,7 +34,7 @@ After installing a newer release, unzip the new download, go back to `chrome://e
 - Configure Ollama or OpenRouter from the extension settings page.
 - Store provider settings locally with `chrome.storage.local`.
 - Use structured JSON model output so the side panel can render predictable sections.
-- Show clear errors for missing models, rejected Ollama origins, invalid model output, and request timeouts.
+- Show clear errors for missing models, rejected Ollama origins, invalid model output, and request timeouts, with a Wait again action for timed-out requests.
 
 ## Screens
 
@@ -55,7 +55,7 @@ The side panel displays source text/image URL, Mandarin, pinyin, natural meaning
   <img src="docs/screenshots/options-page.png" alt="Mandarin Lens options page with provider, display, and appearance settings" width="760" />
 </p>
 
-The options page configures provider, Ollama base URL, Ollama model, OpenRouter API key, OpenRouter model, and connection testing.
+The options page configures provider, Ollama base URL, Ollama model, Ollama thinking, analysis timeout, OpenRouter API key, OpenRouter model, and connection testing.
 
 ## Requirements
 
@@ -166,7 +166,7 @@ The extension uses:
 - The side panel page to run the long-lived model request, avoiding Manifest V3 service-worker suspension during slow local inference.
 - Provider adapters for Ollama and OpenRouter.
 
-Ollama requests use `/api/chat` with `stream: false` and `format: "json"`. Image requests for Ollama fetch the image and pass it as base64. OpenRouter requests use the OpenAI-compatible chat completions format with `image_url` content for image analysis.
+Ollama requests use `/api/chat` with `stream: false`, `format: "json"`, and the configured `think` value. Image requests for Ollama fetch the image and pass it as base64. OpenRouter requests use the OpenAI-compatible chat completions format with `image_url` content for image analysis.
 
 ## Project Structure
 
@@ -223,6 +223,8 @@ Reload the extension in `chrome://extensions`. The side panel must be opened dir
 ### The side panel stays on "Analyzing"
 
 Local models can be slow, especially on the first request. Mandarin Lens now runs analysis from the visible side panel and applies request timeouts. If it still hangs, open the extension service worker console and side panel console from `chrome://extensions` to inspect runtime errors.
+
+If a model response times out, use Wait again in the side panel to rerun the same request. Adjust Analysis Timeout in settings when a local model consistently needs more time.
 
 ### Ollama returns HTTP 403
 
