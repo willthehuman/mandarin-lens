@@ -40,8 +40,22 @@ After installing a newer release, unzip the new download, go back to `chrome://e
 
 The extension has two main surfaces:
 
-- Side panel: displays source text/image URL, Mandarin, pinyin, natural meaning, literal meaning, word breakdowns, grammar notes, usage notes, warnings, and errors.
-- Options page: configures provider, Ollama base URL, Ollama model, OpenRouter API key, OpenRouter model, and connection testing.
+### Side panel
+
+<p align="center">
+  <img src="docs/screenshots/side-panel-analysis-top.png" alt="Mandarin Lens side panel showing translation, meaning, and word breakdown" width="360" />
+  <img src="docs/screenshots/side-panel-analysis-bottom.png" alt="Mandarin Lens side panel showing word breakdown continuation, grammar notes, and usage notes" width="360" />
+</p>
+
+The side panel displays source text/image URL, Mandarin, pinyin, natural meaning, literal meaning, word breakdowns, grammar notes, usage notes, warnings, and errors.
+
+### Options page
+
+<p align="center">
+  <img src="docs/screenshots/options-page.png" alt="Mandarin Lens options page with provider, display, and appearance settings" width="760" />
+</p>
+
+The options page configures provider, Ollama base URL, Ollama model, OpenRouter API key, OpenRouter model, and connection testing.
 
 ## Requirements
 
