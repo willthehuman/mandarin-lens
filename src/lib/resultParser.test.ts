@@ -68,6 +68,36 @@ describe("result parser", () => {
     expect(result.wordBreakdown[0]?.pos).toBe("pron.");
   });
 
+  it("normalizes optional character breakdown items", () => {
+    const result = parseAnalysisResult(
+      JSON.stringify({
+        mandarin: "早上好",
+        wordBreakdown: [
+          {
+            hanzi: "早上",
+            pinyin: "zao shang",
+            english: "morning",
+            characterBreakdown: [
+              { hanzi: "早", pinyin: "zao", english: "early" },
+              { hanzi: "上", pinyin: "shang", english: "up; above", notes: "Together with 早, it means morning." },
+              {}
+            ]
+          }
+        ]
+      }),
+      textRequest,
+      {
+        provider: "openrouter",
+        model: "qwen/qwen3.6-flash"
+      }
+    );
+
+    expect(result.wordBreakdown[0]?.characterBreakdown).toEqual([
+      { hanzi: "早", pinyin: "zǎo", english: "early", notes: undefined },
+      { hanzi: "上", pinyin: "shàng", english: "up; above", notes: "Together with 早, it means morning." }
+    ]);
+  });
+
   it("preserves Mandarin input exactly when the model rewrites it", () => {
     const request: AnalysisRequest = {
       kind: "text",

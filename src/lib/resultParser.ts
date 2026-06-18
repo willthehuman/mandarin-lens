@@ -1,7 +1,7 @@
 import { pinyin as convertToPinyin } from "pinyin-pro";
 
 import { containsCjk, isLikelyMandarin } from "./language";
-import type { AnalysisRequest, AnalysisResult, ProviderName, WordBreakdownItem } from "./types";
+import type { AnalysisRequest, AnalysisResult, CharacterBreakdownItem, ProviderName, WordBreakdownItem } from "./types";
 
 interface ResultMetadata {
   provider: ProviderName;
@@ -95,6 +95,36 @@ function normalizeWordBreakdownItem(raw: unknown): WordBreakdownItem | undefined
     pinyin: normalizePinyin(hanzi, pinyin),
     english,
     pos: toString(raw.pos) || undefined,
+    notes: toString(raw.notes) || undefined,
+    characterBreakdown: normalizeCharacterBreakdown(raw.characterBreakdown)
+  };
+}
+
+function normalizeCharacterBreakdown(raw: unknown): CharacterBreakdownItem[] | undefined {
+  const items = toArray(raw)
+    .map((item) => normalizeCharacterBreakdownItem(item))
+    .filter((item): item is CharacterBreakdownItem => Boolean(item));
+
+  return items.length ? items : undefined;
+}
+
+function normalizeCharacterBreakdownItem(raw: unknown): CharacterBreakdownItem | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  const hanzi = toString(raw.hanzi);
+  const pinyin = toString(raw.pinyin);
+  const english = toString(raw.english);
+
+  if (!hanzi && !pinyin && !english) {
+    return undefined;
+  }
+
+  return {
+    hanzi,
+    pinyin: normalizePinyin(hanzi, pinyin),
+    english,
     notes: toString(raw.notes) || undefined
   };
 }

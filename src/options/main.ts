@@ -3,8 +3,19 @@ import ollamaSvg from "../icons/ollama.svg?raw";
 import openRouterSvg from "../icons/openrouter.svg?raw";
 
 import { h, replaceChildren } from "../lib/dom";
+import { connectOpenRouterWithOAuth } from "../lib/openrouterOAuth";
 import { getAnalysisStatus, getSettings, saveSettings } from "../lib/settings";
-import type { AnalysisDebugInfo, AnalysisStatus, ExtensionMessage, ProviderName, Settings, TestProviderResponse } from "../lib/types";
+import { applyTheme } from "../lib/theme";
+import type {
+  AnalysisDebugInfo,
+  AnalysisStatus,
+  ExtensionMessage,
+  PinyinDisplayMode,
+  ProviderName,
+  Settings,
+  TestProviderResponse,
+  ThemeMode
+} from "../lib/types";
 
 const appRoot = document.querySelector<HTMLElement>("#app");
 
@@ -27,13 +38,17 @@ async function initialize(): Promise<void> {
 }
 
 function render(settings: Settings, feedback: Feedback | undefined): void {
+  applyTheme(settings.theme);
   latestFeedback = feedback;
   const providerName = "provider";
+  const pinyinDisplayName = "pinyinDisplayMode";
+  const themeName = "theme";
   const ollamaBaseUrlId = "ollamaBaseUrl";
   const ollamaModelId = "ollamaModel";
   const openRouterApiKeyId = "openRouterApiKey";
   const openRouterModelId = "openRouterModel";
   const preferSameModelForVisionId = "preferSameModelForVision";
+  const showCharacterMeaningsId = "showCharacterMeanings";
 
   const providerRadios = {
     ollama: h("input", {
@@ -47,6 +62,48 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
       name: providerName,
       value: "openrouter",
       checked: settings.provider === "openrouter"
+    })
+  };
+
+  const pinyinDisplayRadios = {
+    combined: h("input", {
+      type: "radio",
+      name: pinyinDisplayName,
+      value: "combined",
+      checked: settings.pinyinDisplayMode === "combined"
+    }),
+    ruby: h("input", {
+      type: "radio",
+      name: pinyinDisplayName,
+      value: "ruby",
+      checked: settings.pinyinDisplayMode === "ruby"
+    }),
+    separate: h("input", {
+      type: "radio",
+      name: pinyinDisplayName,
+      value: "separate",
+      checked: settings.pinyinDisplayMode === "separate"
+    })
+  };
+
+  const themeRadios = {
+    system: h("input", {
+      type: "radio",
+      name: themeName,
+      value: "system",
+      checked: settings.theme === "system"
+    }),
+    light: h("input", {
+      type: "radio",
+      name: themeName,
+      value: "light",
+      checked: settings.theme === "light"
+    }),
+    dark: h("input", {
+      type: "radio",
+      name: themeName,
+      value: "dark",
+      checked: settings.theme === "dark"
     })
   };
 
@@ -79,6 +136,11 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
       id: preferSameModelForVisionId,
       type: "checkbox",
       checked: settings.preferSameModelForVision
+    }),
+    showCharacterMeanings: h("input", {
+      id: showCharacterMeaningsId,
+      type: "checkbox",
+      checked: settings.showCharacterMeanings
     })
   };
 
@@ -91,7 +153,7 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
     className: "primary-button",
     text: "Save",
     onClick: async () => {
-      const nextSettings = readSettingsFromForm();
+      const nextSettings = readSettingsFromForm(settings);
       await saveSettings(nextSettings);
       render(nextSettings, { type: "success", text: "Settings saved." });
     }
@@ -107,7 +169,7 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
 
   const testButton = h("button", { className: "secondary-button" }, [chartIcon(), "Test connection"]);
   testButton.addEventListener("click", async () => {
-    const nextSettings = readSettingsFromForm();
+    const nextSettings = readSettingsFromForm(settings);
     testButton.setAttribute("disabled", "true");
     feedbackElement.textContent = "";
 
@@ -124,6 +186,46 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
     });
   });
 
+  const connectButton = h("button", { className: "secondary-button" }, [linkIcon(), "Connect OpenRouter"]);
+  connectButton.addEventListener("click", async () => {
+    const nextSettings = readSettingsFromForm(settings);
+    connectButton.setAttribute("disabled", "true");
+    feedbackElement.textContent = "";
+
+    try {
+      const key = await connectOpenRouterWithOAuth();
+      const connectedSettings: Settings = {
+        ...nextSettings,
+        provider: "openrouter",
+        openRouterApiKey: key,
+        openRouterAuthSource: "oauth",
+        openRouterConnectedAt: new Date().toISOString()
+      };
+      await saveSettings(connectedSettings);
+      render(connectedSettings, { type: "success", text: "OpenRouter connected." });
+    } catch (error) {
+      render(nextSettings, {
+        type: "error",
+        text: error instanceof Error ? error.message : "OpenRouter connection failed."
+      });
+    }
+  });
+
+  const disconnectButton = h("button", {
+    className: "secondary-button",
+    text: "Disconnect",
+    onClick: async () => {
+      const disconnectedSettings: Settings = {
+        ...readSettingsFromForm(settings),
+        openRouterApiKey: "",
+        openRouterAuthSource: "manual",
+        openRouterConnectedAt: undefined
+      };
+      await saveSettings(disconnectedSettings);
+      render(disconnectedSettings, { type: "success", text: "OpenRouter disconnected." });
+    }
+  });
+
   const debugButton = h("button", {
     className: "secondary-button",
     text: debugVisible ? "Hide debug info" : "Show debug info",
@@ -132,7 +234,7 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
       if (debugVisible) {
         latestAnalysisStatus = await getAnalysisStatus();
       }
-      render(readSettingsFromForm(), latestFeedback);
+      render(readSettingsFromForm(settings), latestFeedback);
     }
   });
 
@@ -150,6 +252,7 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
           h("p", { text: "Configure AI provider settings for text and vision analysis." })
         ]),
         h("div", { className: "form-grid" }, [
+          h("div", { className: "form-section-heading" }, [h("h3", { text: "Provider" })]),
           h("div", { className: "segmented" }, [
             h("label", {}, [providerRadios.ollama, ollamaIcon(), "Ollama"]),
             h("label", {}, [providerRadios.openrouter, openRouterIcon(), "OpenRouter"])
@@ -167,10 +270,17 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
           h("div", { className: "field" }, [
             h("label", { htmlFor: openRouterApiKeyId, text: "OpenRouter API Key" }),
             passwordField(fields.openRouterApiKey),
-            h("p", { className: "field-hint" }, [
-              "Get your API key from ",
-              h("a", { className: "field-link", text: "openrouter.ai", href: "https://openrouter.ai/keys" })
-            ])
+            h("div", { className: "oauth-row" }, [
+              connectButton,
+              settings.openRouterAuthSource === "oauth" ? disconnectButton : undefined,
+              renderOpenRouterAuthStatus(settings)
+            ]),
+            settings.openRouterAuthSource === "oauth"
+              ? h("p", { className: "field-hint", text: "Connected keys are stored locally in Chrome extension storage." })
+              : h("p", { className: "field-hint" }, [
+                  "Get your API key from ",
+                  h("a", { className: "field-link", text: "openrouter.ai", href: "https://openrouter.ai/keys" })
+                ])
           ]),
           h("div", { className: "field" }, [
             h("label", { htmlFor: openRouterModelId, text: "OpenRouter Model" }),
@@ -187,12 +297,44 @@ function render(settings: Settings, feedback: Feedback | undefined): void {
             ]),
             switchControl(fields.preferSameModelForVision)
           ]),
+          h("div", { className: "form-section-heading" }, [h("h3", { text: "Display" })]),
+          h("div", { className: "field" }, [
+            h("div", { className: "field-label", text: "Pinyin display" }),
+            h("div", { className: "segmented segmented-three" }, [
+              h("label", {}, [pinyinDisplayRadios.combined, "Combined"]),
+              h("label", {}, [pinyinDisplayRadios.ruby, "Above"]),
+              h("label", {}, [pinyinDisplayRadios.separate, "Separate"])
+            ])
+          ]),
+          h("div", { className: "toggle-row" }, [
+            h("div", {}, [
+              h("div", { className: "field-label", text: "Character meanings" }),
+              h("div", {
+                className: "field-hint",
+                text: "Show per-character detail rows in word breakdowns when the model returns them."
+              })
+            ]),
+            switchControl(fields.showCharacterMeanings)
+          ]),
+          h("div", { className: "form-section-heading" }, [h("h3", { text: "Appearance" })]),
+          h("div", { className: "field" }, [
+            h("div", { className: "field-label", text: "Theme" }),
+            h("div", { className: "segmented segmented-three" }, [
+              h("label", {}, [themeRadios.system, "System"]),
+              h("label", {}, [themeRadios.light, "Light"]),
+              h("label", {}, [themeRadios.dark, "Dark"])
+            ])
+          ]),
           feedbackElement
         ]),
         debugVisible ? renderDebugPanel(latestAnalysisStatus) : undefined
       ]),
       h("footer", { className: "action-bar" }, [
-        h("div", { className: "action-bar-start" }, [testButton, debugButton]),
+        h("div", { className: "action-bar-start" }, [
+          testButton,
+          debugButton,
+          h("span", { className: "version-text", text: `Version ${extensionVersion()}` })
+        ]),
         h("div", { className: "action-bar-end" }, [cancelButton, saveButton])
       ])
     ])
@@ -218,6 +360,22 @@ function passwordField(input: HTMLInputElement): HTMLElement {
 function switchControl(input: HTMLInputElement): HTMLElement {
   const track = h("span", { className: "switch-track" }, [h("span", { className: "switch-thumb" })]);
   return h("label", { className: "switch" }, [input, track]);
+}
+
+function renderOpenRouterAuthStatus(settings: Settings): HTMLElement | undefined {
+  if (settings.openRouterAuthSource !== "oauth") {
+    return undefined;
+  }
+
+  return h("span", {
+    className: "auth-status",
+    text: settings.openRouterConnectedAt ? `Connected ${formatDate(settings.openRouterConnectedAt)}` : "Connected"
+  });
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
 }
 
 function renderDebugPanel(status: AnalysisStatus | undefined): HTMLElement {
@@ -294,6 +452,12 @@ function chartIcon(): SVGSVGElement {
   );
 }
 
+function linkIcon(): SVGSVGElement {
+  return svgIcon(
+    '<path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+  );
+}
+
 function ollamaIcon(): SVGSVGElement {
   return brandIcon(ollamaSvg);
 }
@@ -342,19 +506,41 @@ function svgIcon(inner: string): SVGSVGElement {
   return svg;
 }
 
-function readSettingsFromForm(): Settings {
+function extensionVersion(): string {
+  const manifest = chrome.runtime.getManifest();
+  return manifest.version_name || manifest.version;
+}
+
+function readSettingsFromForm(previousSettings: Settings): Settings {
   const providerInput = document.querySelector<HTMLInputElement>('input[name="provider"]:checked');
+  const pinyinDisplayMode = readRadioValue<PinyinDisplayMode>("pinyinDisplayMode", "combined");
+  const theme = readRadioValue<ThemeMode>("theme", "system");
+  const openRouterApiKey = readInput("openRouterApiKey");
+  const keepsOAuthKey =
+    previousSettings.openRouterAuthSource === "oauth" &&
+    Boolean(openRouterApiKey) &&
+    openRouterApiKey === previousSettings.openRouterApiKey;
 
   return {
     provider: (providerInput?.value === "openrouter" ? "openrouter" : "ollama") as ProviderName,
     ollamaBaseUrl: readInput("ollamaBaseUrl"),
     ollamaModel: readInput("ollamaModel"),
-    openRouterApiKey: readInput("openRouterApiKey"),
+    openRouterApiKey,
     openRouterModel: readInput("openRouterModel"),
-    preferSameModelForVision: document.querySelector<HTMLInputElement>("#preferSameModelForVision")?.checked ?? true
+    openRouterAuthSource: keepsOAuthKey ? "oauth" : "manual",
+    openRouterConnectedAt: keepsOAuthKey ? previousSettings.openRouterConnectedAt : undefined,
+    preferSameModelForVision: document.querySelector<HTMLInputElement>("#preferSameModelForVision")?.checked ?? true,
+    pinyinDisplayMode,
+    showCharacterMeanings: document.querySelector<HTMLInputElement>("#showCharacterMeanings")?.checked ?? false,
+    theme
   };
 }
 
 function readInput(id: string): string {
   return document.querySelector<HTMLInputElement>(`#${id}`)?.value.trim() || "";
+}
+
+function readRadioValue<T extends string>(name: string, fallback: T): T {
+  const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`);
+  return (input?.value || fallback) as T;
 }

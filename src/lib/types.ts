@@ -1,4 +1,7 @@
 export type ProviderName = "ollama" | "openrouter";
+export type PinyinDisplayMode = "separate" | "ruby" | "combined";
+export type ThemeMode = "system" | "light" | "dark";
+export type OpenRouterAuthSource = "manual" | "oauth";
 
 export type AnalysisRequest =
   | {
@@ -18,7 +21,19 @@ export interface Settings {
   ollamaModel: string;
   openRouterApiKey: string;
   openRouterModel: string;
+  openRouterAuthSource: OpenRouterAuthSource;
+  openRouterConnectedAt?: string;
   preferSameModelForVision: boolean;
+  pinyinDisplayMode: PinyinDisplayMode;
+  showCharacterMeanings: boolean;
+  theme: ThemeMode;
+}
+
+export interface CharacterBreakdownItem {
+  hanzi: string;
+  pinyin: string;
+  english: string;
+  notes?: string;
 }
 
 export interface WordBreakdownItem {
@@ -27,6 +42,7 @@ export interface WordBreakdownItem {
   english: string;
   pos?: string;
   notes?: string;
+  characterBreakdown?: CharacterBreakdownItem[];
 }
 
 export interface AnalysisResult {

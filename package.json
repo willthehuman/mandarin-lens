@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build",
+    "check:version": "node scripts/check-version.mjs",
+    "build": "npm run check:version && tsc --noEmit && vite build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

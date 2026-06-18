@@ -7,6 +7,9 @@ const OLLAMA_CHAT_TIMEOUT_MS = 180_000;
 const OLLAMA_TAGS_TIMEOUT_MS = 20_000;
 const IMAGE_FETCH_TIMEOUT_MS = 45_000;
 const OPENROUTER_TIMEOUT_MS = 120_000;
+const OPENROUTER_APP_URL = "https://github.com/willthehuman/mandarin-lens";
+const OPENROUTER_APP_TITLE = "Mandarin Lens";
+const OPENROUTER_APP_CATEGORIES = "writing-assistant";
 
 interface ChatMessage {
   role: "system" | "user";
@@ -72,7 +75,8 @@ export async function testProvider(settings: Settings, fetcher: Fetcher = fetch)
 }
 
 export function buildOllamaRequestBody(request: AnalysisRequest, settings: Settings, images?: string[]): object {
-  const userPrompt = buildUserPrompt(request);
+  const promptOptions = { includeCharacterBreakdown: settings.showCharacterMeanings };
+  const userPrompt = buildUserPrompt(request, promptOptions);
 
   return {
     model: settings.ollamaModel,
@@ -84,7 +88,7 @@ export function buildOllamaRequestBody(request: AnalysisRequest, settings: Setti
     messages: [
       {
         role: "system",
-        content: buildSystemPrompt()
+        content: buildSystemPrompt(promptOptions)
       },
       {
         role: "user",
@@ -96,10 +100,11 @@ export function buildOllamaRequestBody(request: AnalysisRequest, settings: Setti
 }
 
 export function buildOpenRouterRequestBody(request: AnalysisRequest, settings: Settings): object {
+  const promptOptions = { includeCharacterBreakdown: settings.showCharacterMeanings };
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemPrompt()
+      content: buildSystemPrompt(promptOptions)
     },
     {
       role: "user",
@@ -108,7 +113,7 @@ export function buildOpenRouterRequestBody(request: AnalysisRequest, settings: S
           ? [
               {
                 type: "text",
-                text: buildUserPrompt(request)
+                text: buildUserPrompt(request, promptOptions)
               },
               {
                 type: "image_url",
@@ -118,7 +123,7 @@ export function buildOpenRouterRequestBody(request: AnalysisRequest, settings: S
                 }
               }
             ]
-          : buildUserPrompt(request)
+          : buildUserPrompt(request, promptOptions)
     }
   ];
 
@@ -132,6 +137,16 @@ export function buildOpenRouterRequestBody(request: AnalysisRequest, settings: S
   };
 }
 
+export function buildOpenRouterHeaders(apiKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": OPENROUTER_APP_URL,
+    "X-OpenRouter-Title": OPENROUTER_APP_TITLE,
+    "X-OpenRouter-Categories": OPENROUTER_APP_CATEGORIES
+  };
+}
+
 async function analyzeWithOllama(
   request: AnalysisRequest,
   settings: Settings,
@@ -139,7 +154,7 @@ async function analyzeWithOllama(
 ): Promise<AnalysisOutcome> {
   const images = request.kind === "image" ? [await imageUrlToBase64(request.srcUrl, fetcher)] : undefined;
   const requestBody = buildOllamaRequestBody(request, settings, images);
-  const debug = createDebugInfo("ollama", settings.ollamaModel, request, sanitizeDebugValue(requestBody));
+  const debug = createDebugInfo("ollama", settings.ollamaModel, request, sanitizeDebugValue(requestBody), settings);
   const response = await fetchWithTimeout(
     fetcher,
     `${settings.ollamaBaseUrl}/api/chat`,
@@ -253,17 +268,13 @@ async function analyzeWithOpenRouter(
   }
 
   const requestBody = buildOpenRouterRequestBody(request, settings);
-  const debug = createDebugInfo("openrouter", settings.openRouterModel, request, requestBody);
+  const debug = createDebugInfo("openrouter", settings.openRouterModel, request, requestBody, settings);
   const response = await fetchWithTimeout(
     fetcher,
     "https://openrouter.ai/api/v1/chat/completions",
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${settings.openRouterApiKey}`,
-        "Content-Type": "application/json",
-        "X-OpenRouter-Title": "Mandarin Lens"
-      },
+      headers: buildOpenRouterHeaders(settings.openRouterApiKey),
       body: JSON.stringify(requestBody)
     },
     OPENROUTER_TIMEOUT_MS,
@@ -319,14 +330,17 @@ function createDebugInfo(
   provider: AnalysisDebugInfo["provider"],
   model: string,
   request: AnalysisRequest,
-  providerRequest: unknown
+  providerRequest: unknown,
+  settings: Settings
 ): AnalysisDebugInfo {
+  const promptOptions = { includeCharacterBreakdown: settings.showCharacterMeanings };
+
   return {
     provider,
     model,
     request: sanitizeDebugValue(request) as AnalysisRequest,
-    systemPrompt: buildSystemPrompt(),
-    userPrompt: sanitizeDebugString(buildUserPrompt(request)),
+    systemPrompt: buildSystemPrompt(promptOptions),
+    userPrompt: sanitizeDebugString(buildUserPrompt(request, promptOptions)),
     providerRequest,
     createdAt: new Date().toISOString()
   };

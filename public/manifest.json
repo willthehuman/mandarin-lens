@@ -4,7 +4,7 @@
   "description": "Analyze selected English or Mandarin text, plus right-clicked images, with Mandarin, pinyin, and learning notes.",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
-  "permissions": ["contextMenus", "sidePanel", "storage"],
+  "permissions": ["contextMenus", "sidePanel", "storage", "identity"],
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",

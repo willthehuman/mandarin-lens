@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AnalysisDebugError, analyzeRequest, buildOllamaRequestBody, buildOpenRouterRequestBody, testProvider } from "./providers";
+import {
+  AnalysisDebugError,
+  analyzeRequest,
+  buildOllamaRequestBody,
+  buildOpenRouterHeaders,
+  buildOpenRouterRequestBody,
+  testProvider
+} from "./providers";
 import { DEFAULT_SETTINGS } from "./settings";
 import type { AnalysisRequest, Settings } from "./types";
 
@@ -42,6 +49,16 @@ describe("provider request builders", () => {
         })
       ])
     );
+  });
+
+  it("adds OpenRouter app attribution headers", () => {
+    expect(buildOpenRouterHeaders("test-key")).toMatchObject({
+      Authorization: "Bearer test-key",
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://github.com/willthehuman/mandarin-lens",
+      "X-OpenRouter-Title": "Mandarin Lens",
+      "X-OpenRouter-Categories": "writing-assistant"
+    });
   });
 
   it("adds Mandarin-skip instruction when selected text is Mandarin", () => {

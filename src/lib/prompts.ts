@@ -1,7 +1,16 @@
 import { isLikelyMandarin } from "./language";
 import type { AnalysisRequest } from "./types";
 
-export const RESULT_SCHEMA_DESCRIPTION = `{
+export interface PromptOptions {
+  includeCharacterBreakdown?: boolean;
+}
+
+export function resultSchemaDescription(options: PromptOptions = {}): string {
+  const characterBreakdown = options.includeCharacterBreakdown
+    ? ', "characterBreakdown": [{ "hanzi": "字", "pinyin": "zi4 with tone marks preferred", "english": "character meaning", "notes": "optional brief note" }]'
+    : "";
+
+  return `{
   "inputLanguage": "English | Mandarin | Mixed | Unknown",
   "sourceText": "original text or concise image-derived source phrase. If the selected text is Mandarin, copy it exactly.",
   "mandarin": "Simplified Chinese text. If source text is already Mandarin, copy the Mandarin source exactly without changing, paraphrasing, transliterating, or replacing characters.",
@@ -9,15 +18,18 @@ export const RESULT_SCHEMA_DESCRIPTION = `{
   "literalMeaning": "literal word-by-word English meaning",
   "naturalEnglish": "natural English meaning",
   "wordBreakdown": [
-    { "hanzi": "词", "pinyin": "ci2 with tone marks preferred", "english": "meaning", "pos": "part of speech abbreviation, e.g. n., v., adj., adv., conj., part.", "notes": "brief learner note" }
+    { "hanzi": "词", "pinyin": "ci2 with tone marks preferred", "english": "meaning", "pos": "part of speech abbreviation, e.g. n., v., adj., adv., conj., part.", "notes": "brief learner note"${characterBreakdown} }
   ],
   "grammarNotes": ["short grammar note"],
   "usageNotes": ["short usage, tone, cultural, or register note"],
   "imageDescription": "only for image requests; concise English description of the image",
   "warnings": ["uncertainty, ambiguity, OCR issue, or model limitation"]
 }`;
+}
 
-export function buildSystemPrompt(): string {
+export const RESULT_SCHEMA_DESCRIPTION = resultSchemaDescription();
+
+export function buildSystemPrompt(options: PromptOptions = {}): string {
   return [
     "You are Mandarin Lens, a careful Mandarin learning assistant.",
     "Return only valid JSON. Do not wrap the JSON in markdown.",
@@ -29,18 +41,26 @@ export function buildSystemPrompt(): string {
     "If translating from English or another language, provide natural Mandarin first, then learning details.",
     "Any page URL or surrounding context is reference only. Never translate it or include it in sourceText, mandarin, or the word breakdown.",
     "Prefer useful vocabulary segmentation over character-by-character breakdown unless a single character is meaningful.",
+    options.includeCharacterBreakdown
+      ? "For each multi-character word, include characterBreakdown with each character's pinyin and standalone meaning when useful."
+      : "Do not include characterBreakdown unless explicitly requested.",
     "The response must match this schema exactly enough for a parser to consume it:",
-    RESULT_SCHEMA_DESCRIPTION
+    resultSchemaDescription(options)
   ].join("\n");
 }
 
-export function buildUserPrompt(request: AnalysisRequest): string {
+export function buildUserPrompt(request: AnalysisRequest, options: PromptOptions = {}): string {
+  const characterBreakdownInstruction = options.includeCharacterBreakdown
+    ? "For multi-character words, include per-character meanings inside characterBreakdown when each character has a useful standalone meaning."
+    : "";
+
   if (request.kind === "image") {
     return [
       "Analyze the image for a Mandarin learner.",
       "First describe what is visible in English.",
       "Then provide a concise Mandarin description or useful Mandarin vocabulary related to the image.",
       "Include pinyin, literal meaning, natural English meaning, word breakdown, grammar notes, and usage notes.",
+      characterBreakdownInstruction,
       request.pageUrl
         ? `For reference only, this image appeared on the page ${request.pageUrl}. Do not translate the URL or include it in any output field.`
         : "",
@@ -56,6 +76,7 @@ export function buildUserPrompt(request: AnalysisRequest): string {
       ? "The selected text is Mandarin. Do not translate it. Copy it exactly into sourceText and mandarin, then analyze it directly."
       : "Translate the selected text into natural Simplified Chinese, then analyze the Mandarin.",
     "Include pinyin, literal meaning, natural English meaning, word breakdown, grammar notes, and usage notes.",
+    characterBreakdownInstruction,
     request.pageUrl
       ? `For reference only, this text appeared on the page ${request.pageUrl}. Do not translate the URL or include it in any output field.`
       : "",

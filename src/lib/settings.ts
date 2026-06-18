@@ -1,4 +1,4 @@
-import type { AnalysisStatus, Settings } from "./types";
+import type { AnalysisStatus, OpenRouterAuthSource, PinyinDisplayMode, Settings, ThemeMode } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
   provider: "ollama",
@@ -6,7 +6,11 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaModel: "gemma4:e4b-it-qat",
   openRouterApiKey: "",
   openRouterModel: "qwen/qwen3.6-flash",
-  preferSameModelForVision: true
+  openRouterAuthSource: "manual",
+  preferSameModelForVision: true,
+  pinyinDisplayMode: "combined",
+  showCharacterMeanings: false,
+  theme: "system"
 };
 
 const LEGACY_DEFAULT_OLLAMA_MODELS = new Set(["qwen2.5vl:7b", "gemma4:e4b-it-qat"]);
@@ -22,7 +26,15 @@ export function normalizeSettings(value: Partial<Settings> | undefined): Setting
     ollamaModel: normalizeOllamaModel(value?.ollamaModel),
     openRouterApiKey: value?.openRouterApiKey?.trim() || "",
     openRouterModel: value?.openRouterModel?.trim() || DEFAULT_SETTINGS.openRouterModel,
-    preferSameModelForVision: value?.preferSameModelForVision ?? DEFAULT_SETTINGS.preferSameModelForVision
+    openRouterAuthSource: normalizeOpenRouterAuthSource(value),
+    openRouterConnectedAt:
+      normalizeOpenRouterAuthSource(value) === "oauth" && value?.openRouterConnectedAt?.trim()
+        ? value.openRouterConnectedAt.trim()
+        : undefined,
+    preferSameModelForVision: value?.preferSameModelForVision ?? DEFAULT_SETTINGS.preferSameModelForVision,
+    pinyinDisplayMode: normalizePinyinDisplayMode(value?.pinyinDisplayMode),
+    showCharacterMeanings: value?.showCharacterMeanings ?? DEFAULT_SETTINGS.showCharacterMeanings,
+    theme: normalizeTheme(value?.theme)
   };
 }
 
@@ -56,4 +68,18 @@ function normalizeOllamaModel(value: string | undefined): string {
   }
 
   return model;
+}
+
+function normalizeOpenRouterAuthSource(value: Partial<Settings> | undefined): OpenRouterAuthSource {
+  return value?.openRouterAuthSource === "oauth" && Boolean(value.openRouterApiKey?.trim()) ? "oauth" : "manual";
+}
+
+function normalizePinyinDisplayMode(value: PinyinDisplayMode | undefined): PinyinDisplayMode {
+  return value === "separate" || value === "ruby" || value === "combined"
+    ? value
+    : DEFAULT_SETTINGS.pinyinDisplayMode;
+}
+
+function normalizeTheme(value: ThemeMode | undefined): ThemeMode {
+  return value === "light" || value === "dark" || value === "system" ? value : DEFAULT_SETTINGS.theme;
 }

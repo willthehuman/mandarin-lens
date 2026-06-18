@@ -9,7 +9,10 @@ interface ElementOptions {
   name?: string;
   id?: string;
   href?: string;
+  src?: string;
+  alt?: string;
   htmlFor?: string;
+  colSpan?: number;
   checked?: boolean;
   placeholder?: string;
   ariaLabel?: string;
@@ -35,8 +38,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     element.target = "_blank";
     element.rel = "noreferrer";
   }
+  if (options.src && element instanceof HTMLImageElement) element.src = options.src;
+  if (options.alt !== undefined && element instanceof HTMLImageElement) element.alt = options.alt;
   if (options.ariaLabel) element.setAttribute("aria-label", options.ariaLabel);
   if (options.htmlFor && element instanceof HTMLLabelElement) element.htmlFor = options.htmlFor;
+  if (options.colSpan !== undefined && element instanceof HTMLTableCellElement) element.colSpan = options.colSpan;
   if (options.type && element instanceof HTMLInputElement) element.type = options.type;
   if (options.name && element instanceof HTMLInputElement) element.name = options.name;
   if (options.value !== undefined && element instanceof HTMLInputElement) element.value = options.value;

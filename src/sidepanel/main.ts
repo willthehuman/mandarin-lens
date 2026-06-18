@@ -1,14 +1,17 @@
 import "../styles.css";
 
 import { h, replaceChildren } from "../lib/dom";
+import { buildRubyTokens } from "../lib/pinyinDisplay";
 import { AnalysisDebugError, activeModel, analyzeRequest } from "../lib/providers";
 import { getAnalysisStatus, getSettings, saveAnalysisStatus } from "../lib/settings";
+import { applyTheme } from "../lib/theme";
 import type {
   AnalysisRequest,
   AnalysisResult,
   AnalysisStatus,
   ExtensionMessage,
-  ProviderName
+  ProviderName,
+  Settings
 } from "../lib/types";
 
 const appRoot = document.querySelector<HTMLElement>("#app");
@@ -19,12 +22,17 @@ if (!appRoot) {
 
 const app = appRoot;
 let activeAnalysisKey: string | undefined;
+let currentSettings: Settings | undefined;
+let currentStatus: AnalysisStatus | undefined;
+let characterDetailsExpanded = true;
 
 void initialize();
 
 async function initialize(): Promise<void> {
-  const initialStatus = await getAnalysisStatus();
-  render(initialStatus);
+  const [initialStatus, settings] = await Promise.all([getAnalysisStatus(), getSettings()]);
+  currentSettings = settings;
+  applyTheme(settings.theme);
+  render(initialStatus, settings);
   maybeRunAnalysis(initialStatus);
 
   chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
@@ -33,16 +41,17 @@ async function initialize(): Promise<void> {
       message.type === "ANALYSIS_RESULT" ||
       message.type === "ANALYSIS_ERROR"
     ) {
-      render(message.payload);
+      render(message.payload, currentSettings);
       maybeRunAnalysis(message.payload);
     }
   });
 }
 
-function render(status: AnalysisStatus): void {
+function render(status: AnalysisStatus, settings: Settings | undefined = currentSettings): void {
+  currentStatus = status;
   replaceChildren(app, [
     h("div", { className: "app-shell" }, [
-      h("div", { className: "content" }, [renderContent(status)]),
+      h("div", { className: "content" }, [renderContent(status, settings)]),
       renderStatusBar(status)
     ])
   ]);
@@ -73,7 +82,7 @@ function renderStatusBar(status: AnalysisStatus): HTMLElement {
   ]);
 }
 
-function renderContent(status: AnalysisStatus): HTMLElement {
+function renderContent(status: AnalysisStatus, settings: Settings | undefined): HTMLElement {
   if (status.status === "idle") {
     return h("div", { className: "empty-state" }, [
       h("h2", { text: "No analysis yet" }),
@@ -125,7 +134,7 @@ function renderContent(status: AnalysisStatus): HTMLElement {
     ]);
   }
 
-  return renderResult(status.request, status.result);
+  return renderResult(status.request, status.result, settings);
 }
 
 function maybeRunAnalysis(status: AnalysisStatus): void {
@@ -144,6 +153,8 @@ function maybeRunAnalysis(status: AnalysisStatus): void {
 
 async function retryAnalysis(request: AnalysisRequest): Promise<void> {
   const settings = await getSettings();
+  currentSettings = settings;
+  applyTheme(settings.theme);
   const loadingStatus: AnalysisStatus = {
     status: "loading",
     request,
@@ -153,7 +164,7 @@ async function retryAnalysis(request: AnalysisRequest): Promise<void> {
   };
 
   await saveAnalysisStatus(loadingStatus);
-  render(loadingStatus);
+  render(loadingStatus, settings);
   maybeRunAnalysis(loadingStatus);
 }
 
@@ -163,6 +174,8 @@ async function runAnalysisInPanel(
 ): Promise<void> {
   try {
     const settings = await getSettings();
+    currentSettings = settings;
+    applyTheme(settings.theme);
     const outcome = await analyzeRequest(status.request, settings);
     const resultStatus: AnalysisStatus = {
       status: "result",
@@ -171,8 +184,9 @@ async function runAnalysisInPanel(
       debug: outcome.debug
     };
 
+    characterDetailsExpanded = true;
     await saveAnalysisStatus(resultStatus);
-    render(resultStatus);
+    render(resultStatus, settings);
   } catch (error) {
     const debug = error instanceof AnalysisDebugError ? error.debug : undefined;
     const errorStatus: AnalysisStatus = {
@@ -190,7 +204,7 @@ async function runAnalysisInPanel(
     };
 
     await saveAnalysisStatus(errorStatus);
-    render(errorStatus);
+    render(errorStatus, currentSettings);
   } finally {
     if (activeAnalysisKey === analysisKey) {
       activeAnalysisKey = undefined;
@@ -198,7 +212,11 @@ async function runAnalysisInPanel(
   }
 }
 
-function renderResult(request: AnalysisRequest, result: AnalysisResult): HTMLElement {
+function renderResult(request: AnalysisRequest, result: AnalysisResult, settings: Settings | undefined): HTMLElement {
+  const pinyinDisplayMode = settings?.pinyinDisplayMode || "combined";
+  const showRuby = pinyinDisplayMode === "ruby" || pinyinDisplayMode === "combined";
+  const showSeparatePinyin = pinyinDisplayMode === "separate" || pinyinDisplayMode === "combined";
+
   return h("div", { className: "stack" }, [
     renderSourceSection(request),
     result.imageDescription
@@ -206,10 +224,10 @@ function renderResult(request: AnalysisRequest, result: AnalysisResult): HTMLEle
       : undefined,
     renderSection(
       "Translation",
-      [h("p", { className: "mandarin-text", text: result.mandarin || "No Mandarin returned." })],
+      [showRuby ? renderMandarinRuby(result.mandarin) : h("p", { className: "mandarin-text", text: result.mandarin || "No Mandarin returned." })],
       result.mandarin ? copyButton(result.mandarin, "Copy translation") : undefined
     ),
-    result.pinyin
+    result.pinyin && showSeparatePinyin
       ? renderSection("Pinyin", [h("p", { className: "pinyin-text", text: result.pinyin })], copyButton(result.pinyin, "Copy pinyin"))
       : undefined,
     renderSection("Meaning", [
@@ -218,7 +236,7 @@ function renderResult(request: AnalysisRequest, result: AnalysisResult): HTMLEle
         ? h("p", { className: "small muted", text: `Literal: ${result.literalMeaning}` })
         : undefined
     ]),
-    result.wordBreakdown.length ? renderBreakdown(result.wordBreakdown) : undefined,
+    result.wordBreakdown.length ? renderBreakdown(result.wordBreakdown, settings?.showCharacterMeanings ?? false) : undefined,
     result.grammarNotes.length ? renderNotes("Grammar notes", result.grammarNotes) : undefined,
     result.usageNotes.length ? renderNotes("Usage notes", result.usageNotes) : undefined,
     result.provider === "ollama" ? renderOllamaNotice() : undefined,
@@ -228,7 +246,10 @@ function renderResult(request: AnalysisRequest, result: AnalysisResult): HTMLEle
 
 function renderSourceSection(request: AnalysisRequest): HTMLElement {
   if (request.kind === "image") {
-    return renderSection("Selected image", [h("p", { className: "source-text", text: request.srcUrl })]);
+    return renderSection("Selected image", [
+      h("img", { className: "selected-image-preview", src: request.srcUrl, alt: "Selected image" }),
+      h("p", { className: "source-text image-url-text", text: request.srcUrl })
+    ]);
   }
 
   return renderSection("Selected text", [
@@ -251,7 +272,22 @@ function renderSection(
   ]);
 }
 
-function renderBreakdown(items: AnalysisResult["wordBreakdown"]): HTMLElement {
+function renderMandarinRuby(value: string): HTMLElement {
+  if (!value) {
+    return h("p", { className: "mandarin-text", text: "No Mandarin returned." });
+  }
+
+  const tokens = buildRubyTokens(value).map((token) =>
+    token.pinyin
+      ? h("ruby", { className: "ruby-token" }, [token.text, h("rt", { text: token.pinyin })])
+      : h("span", { text: token.text })
+  );
+
+  return h("p", { className: "mandarin-text mandarin-ruby-text" }, tokens);
+}
+
+function renderBreakdown(items: AnalysisResult["wordBreakdown"], showCharacterMeanings: boolean): HTMLElement {
+  const hasCharacterDetails = showCharacterMeanings && items.some((item) => item.characterBreakdown?.length);
   const headerRow = h("tr", {}, [
     h("th", { text: "Word" }),
     h("th", { text: "Pinyin" }),
@@ -259,8 +295,8 @@ function renderBreakdown(items: AnalysisResult["wordBreakdown"]): HTMLElement {
     h("th", { text: "POS" })
   ]);
 
-  const rows = items.map((item) =>
-    h("tr", {}, [
+  const rows = items.flatMap((item) => {
+    const masterRow = h("tr", {}, [
       h("td", { className: "breakdown-hanzi", text: item.hanzi }),
       h("td", { className: "breakdown-pinyin", text: item.pinyin }),
       h("td", {}, [
@@ -268,11 +304,25 @@ function renderBreakdown(items: AnalysisResult["wordBreakdown"]): HTMLElement {
         item.notes ? h("div", { className: "breakdown-note", text: item.notes }) : undefined
       ]),
       h("td", { className: "breakdown-pos", text: item.pos || "" })
-    ])
-  );
+    ]);
+
+    if (!hasCharacterDetails || !characterDetailsExpanded || !item.characterBreakdown?.length) {
+      return [masterRow];
+    }
+
+    return [
+      masterRow,
+      h("tr", { className: "breakdown-detail-row" }, [
+        h("td", { className: "breakdown-detail-cell", colSpan: 4 }, [renderCharacterBreakdown(item.characterBreakdown)])
+      ])
+    ];
+  });
 
   return h("section", { className: "panel-section" }, [
-    h("div", { className: "section-label-row" }, [h("span", { className: "section-label", text: "Word breakdown" })]),
+    h("div", { className: "section-label-row" }, [
+      h("span", { className: "section-label", text: "Word breakdown" }),
+      hasCharacterDetails ? characterDetailsToggleButton() : undefined
+    ]),
     h("table", { className: "breakdown-table" }, [
       h("colgroup", {}, [
         h("col", { className: "col-word" }),
@@ -284,6 +334,37 @@ function renderBreakdown(items: AnalysisResult["wordBreakdown"]): HTMLElement {
       h("tbody", {}, rows)
     ])
   ]);
+}
+
+function characterDetailsToggleButton(): HTMLElement {
+  const label = characterDetailsExpanded ? "Collapse all" : "Expand all";
+  return h("button", {
+    className: "detail-toggle-button",
+    text: label,
+    title: label,
+    ariaLabel: `${label} character meanings`,
+    onClick: () => {
+      characterDetailsExpanded = !characterDetailsExpanded;
+      if (currentStatus) {
+        render(currentStatus, currentSettings);
+      }
+    }
+  });
+}
+
+function renderCharacterBreakdown(items: NonNullable<AnalysisResult["wordBreakdown"][number]["characterBreakdown"]>): HTMLElement {
+  return h(
+    "div",
+    { className: "character-breakdown" },
+    items.map((item) =>
+      h("div", { className: "character-item" }, [
+        h("div", { className: "character-hanzi", text: item.hanzi }),
+        h("div", { className: "character-pinyin", text: item.pinyin }),
+        h("div", { className: "character-meaning", text: item.english }),
+        item.notes ? h("div", { className: "character-note", text: item.notes }) : undefined
+      ])
+    )
+  );
 }
 
 function renderNotes(title: string, notes: string[]): HTMLElement {

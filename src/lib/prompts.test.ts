@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildUserPrompt } from "./prompts";
+import { buildSystemPrompt, buildUserPrompt } from "./prompts";
 
 describe("buildUserPrompt", () => {
   it("labels the page URL as reference only and keeps the selected text last", () => {
@@ -39,5 +39,21 @@ describe("buildUserPrompt", () => {
     expect(prompt.indexOf("https://example.com/some/long/article")).toBeLessThan(
       prompt.indexOf("Image URL:")
     );
+  });
+
+  it("only requests character breakdowns when enabled", () => {
+    const defaultPrompt = buildSystemPrompt();
+    const enabledSystemPrompt = buildSystemPrompt({ includeCharacterBreakdown: true });
+    const enabledUserPrompt = buildUserPrompt(
+      {
+        kind: "text",
+        text: "good morning"
+      },
+      { includeCharacterBreakdown: true }
+    );
+
+    expect(defaultPrompt).not.toContain('"characterBreakdown"');
+    expect(enabledSystemPrompt).toContain('"characterBreakdown"');
+    expect(enabledUserPrompt).toContain("per-character meanings");
   });
 });
